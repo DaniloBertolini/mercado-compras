@@ -14,6 +14,10 @@
 
 * { box-sizing: border-box; }
 
+html{
+  -webkit-text-size-adjust: 100%;
+}
+
 body{
   margin:0;
   min-height:100vh;
@@ -41,6 +45,7 @@ body::before{
 .receipt{
   width:100%;
   max-width: 560px;
+  min-width: 0;
   background: var(--paper);
   position:relative;
   box-shadow: 0 30px 60px -25px var(--shadow);
@@ -96,6 +101,7 @@ header.brand .sub{
 .steps{
   display:flex;
   justify-content:center;
+  flex-wrap: wrap;
   gap: 6px;
   margin-bottom: 26px;
   font-size: 0.68rem;
@@ -146,6 +152,8 @@ form.entry{
 form.entry.two-col{
   grid-template-columns: 1fr 90px 40px;
 }
+/* sem isto os inputs impoem sua largura intrinseca e estouram a grade */
+form.entry > div{ min-width: 0; }
 
 label.field-label{
   font-size:0.62rem;
@@ -206,7 +214,7 @@ ul.list li{
   font-size: 0.86rem;
   animation: fadeUp 0.25s ease;
 }
-ul.list li .name{ flex:1; }
+ul.list li .name{ flex:1; min-width:0; overflow-wrap:anywhere; }
 ul.list li .qty{ color: var(--ink-soft); width:34px; text-align:right; }
 ul.list li .price{ width:80px; text-align:right; font-weight:700; }
 ul.list li .rm{
@@ -389,7 +397,7 @@ ul.list li .rm:hover{ opacity:1; color: var(--bad); }
   gap:8px;
   margin-bottom:14px;
 }
-.import-link-row input{ flex:1; }
+.import-link-row input{ flex:1; min-width:0; }
 .btn-open{
   padding: 0 14px;
   background: transparent;
@@ -477,4 +485,55 @@ ul.preview-list li .price{ font-weight:700; }
   background: var(--line);
   color: var(--ink-soft);
   cursor:not-allowed;
+}
+
+/* ---------- celular ---------- */
+@media (max-width: 600px){
+
+  body{ padding: 16px 8px 56px; }
+  .receipt-inner{ padding: 8px 16px 28px; }
+
+  header.brand{ padding: 10px 0 18px; margin-bottom: 18px; }
+  header.brand .mark{ font-size: 1.15rem; letter-spacing: 0.08em; gap:8px; }
+  header.brand .sub{ font-size: 0.62rem; letter-spacing: 0.1em; }
+
+  .steps{ font-size: 0.6rem; margin-bottom: 20px; }
+  .steps .step{ padding: 4px 8px; }
+
+  /* nome ocupa a linha toda; qtd, preco e + dividem a de baixo */
+  form.entry{
+    grid-template-columns: 1fr 1fr 46px;
+    gap: 12px 8px;
+  }
+  form.entry.two-col{ grid-template-columns: 1fr 46px; }
+  form.entry > div:first-child{ grid-column: 1 / -1; }
+
+  /* 16px evita o zoom automatico ao focar o campo */
+  input, textarea.import-text{ font-size: 16px; }
+  input{ padding: 8px 2px; }
+
+  .btn-add{ height: 40px; font-size: 1.1rem; }
+
+  ul.list li{ gap: 8px; padding: 12px 0; }
+  ul.list li .rm{ padding: 6px 4px; font-size: 1.15rem; opacity: 0.7; }
+
+  .actions{ flex-wrap: wrap; }
+  .btn-primary, .btn-secondary{ padding: 14px 8px; font-size: 0.72rem; letter-spacing: 0.06em; }
+
+  .import-wrap{ padding: 12px; }
+  .import-link-row{ flex-wrap: wrap; }
+  .import-link-row input{ flex: 1 1 100%; }
+  .btn-open{ flex: 1; padding: 10px; }
+
+  /* comparativo empilhado: a barra colorida liga o pago ao anunciado */
+  .compare-row{ grid-template-columns: 1fr; gap: 8px; }
+  .compare-row::after{ display: none; }
+  .col-bought{
+    border-left: 2px solid var(--line);
+    padding-left: 10px;
+  }
+  .col-bought.diff-bad{ border-left-color: var(--bad); }
+  .col-bought.diff-ok{ border-left-color: var(--ok); }
+
+  .summary{ padding: 14px; }
 }
