@@ -127,6 +127,29 @@
       <div class="footer-note">obrigado pela conferência</div>
     </section>
 
+    <!-- BACKUP: levar a lista de um aparelho para outro -->
+    <details class="backup-wrap">
+      <summary>backup — levar do celular pro pc</summary>
+      <p class="hint">Os dados ficam só neste aparelho. Para ver no outro, exporte aqui e importe lá — o código é texto puro, dá para mandar por WhatsApp para você mesmo.</p>
+
+      <div class="backup-row">
+        <button type="button" class="btn-open" id="btn-copy-backup">copiar código</button>
+        <button type="button" class="btn-open" id="btn-download-backup">baixar arquivo</button>
+      </div>
+
+      <textarea class="import-text" id="backup-text" placeholder="o código exportado aparece aqui — ou cole aqui o código vindo do outro aparelho"></textarea>
+
+      <div class="backup-row">
+        <button type="button" class="btn-parse" id="btn-import-text">importar código colado</button>
+        <label class="btn-open file-label">
+          abrir arquivo
+          <input type="file" id="backup-file" accept=".json,application/json,text/plain" hidden>
+        </label>
+      </div>
+
+      <div class="backup-status" id="backup-status" role="status"></div>
+    </details>
+
   </div>
 </div>
 

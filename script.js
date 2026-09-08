@@ -140,6 +140,82 @@
     return { name: item.name, qty, price: Math.round(price * 100) / 100 };
   }
 
+  // ---------- Backup (exportar / importar entre aparelhos) ----------
+  // O estado é só um JSON, então o "código" exportado é o próprio JSON numa linha:
+  // dá para colar no WhatsApp ou salvar como arquivo, e a importação aceita os dois.
+  const BACKUP_VERSION = 1;
+
+  function buildBackupText(){
+    return JSON.stringify({
+      app: 'conferelista',
+      version: BACKUP_VERSION,
+      exportedAt: new Date().toISOString(),
+      state,
+    });
+  }
+
+  // Nunca confia no que veio de fora: o texto pode ter sido truncado no meio do
+  // caminho (WhatsApp, e-mail) ou editado à mão.
+  function sanitizeItems(arr, forcedQty){
+    if(!Array.isArray(arr)) return [];
+    return arr.map(raw => {
+      if(!raw || typeof raw !== 'object') return null;
+      const name = String(raw.name == null ? '' : raw.name).trim();
+      const price = Number(raw.price);
+      if(!name || !isFinite(price)) return null;
+      const qty = Number(raw.qty);
+      const item = { name, price };
+      if(isFinite(qty) && qty > 0) item.qty = qty;
+      else if(forcedQty) item.qty = 1;
+      return item;
+    }).filter(Boolean);
+  }
+
+  function parseBackupText(text){
+    const raw = String(text || '').trim();
+    if(!raw) throw new Error('Cole o código exportado antes de importar.');
+
+    let data;
+    try{
+      data = JSON.parse(raw);
+    }catch(e){
+      throw new Error('Código inválido — copie o texto inteiro, do "{" até o "}" final.');
+    }
+
+    const payload = data && typeof data === 'object' && data.state && typeof data.state === 'object'
+      ? data.state
+      : data;
+
+    if(!payload || typeof payload !== 'object' || (!Array.isArray(payload.planned) && !Array.isArray(payload.bought))){
+      throw new Error('Não encontrei nenhuma lista nesse código.');
+    }
+
+    const imported = {
+      step: [1,2,3].includes(Number(payload.step)) ? Number(payload.step) : 1,
+      planned: sanitizeItems(payload.planned, true),
+      bought: sanitizeItems(payload.bought, false),
+    };
+
+    if(!imported.planned.length && !imported.bought.length){
+      throw new Error('O código foi lido, mas as duas listas estão vazias.');
+    }
+    return imported;
+  }
+
+  function applyBackup(imported){
+    const hasData = state.planned.length || state.bought.length;
+    const resumo = `${imported.planned.length} item(ns) planejado(s) e ${imported.bought.length} pago(s)`;
+    const aviso = hasData
+      ? `Importar ${resumo}?\n\nIsto SUBSTITUI a lista que já está neste aparelho.`
+      : `Importar ${resumo}?`;
+    if(!confirm(aviso)) return false;
+
+    state = imported;
+    save();
+    renderAll();
+    return true;
+  }
+
   // ---------- Elements ----------
   const screens = {
     1: document.getElementById('screen-planned'),
@@ -173,6 +249,13 @@
   const previewListEl = document.getElementById('preview-list');
   const importEmptyEl = document.getElementById('import-empty');
   const btnConfirmImport = document.getElementById('btn-confirm-import');
+
+  const backupTextEl = document.getElementById('backup-text');
+  const backupStatusEl = document.getElementById('backup-status');
+  const backupFileEl = document.getElementById('backup-file');
+  const btnCopyBackup = document.getElementById('btn-copy-backup');
+  const btnDownloadBackup = document.getElementById('btn-download-backup');
+  const btnImportText = document.getElementById('btn-import-text');
 
   let previewItems = [];
 
@@ -486,6 +569,87 @@
     previewItems = [];
     importTextEl.value = '';
     renderPreview();
+  });
+
+  // ---------- Backup events ----------
+  function backupStatus(msg, kind){
+    backupStatusEl.textContent = msg;
+    backupStatusEl.className = 'backup-status' + (kind ? ' ' + kind : '');
+  }
+
+  // navigator.clipboard não existe fora de https/localhost (abrindo o arquivo
+  // direto, por exemplo), então o texto fica selecionado como plano B.
+  function copyToClipboard(text){
+    if(navigator.clipboard && window.isSecureContext){
+      return navigator.clipboard.writeText(text).then(() => true, () => selectFallback());
+    }
+    return Promise.resolve(selectFallback());
+  }
+
+  function selectFallback(){
+    backupTextEl.focus();
+    backupTextEl.setSelectionRange(0, backupTextEl.value.length);
+    try{
+      return document.execCommand('copy');
+    }catch(e){
+      return false;
+    }
+  }
+
+  btnCopyBackup.addEventListener('click', () => {
+    const text = buildBackupText();
+    backupTextEl.value = text;
+    copyToClipboard(text).then(ok => {
+      backupStatus(
+        ok ? 'Código copiado — cole no outro aparelho e toque em importar.'
+           : 'O texto está selecionado aí em cima: copie manualmente.',
+        ok ? 'ok' : 'bad'
+      );
+    });
+  });
+
+  btnDownloadBackup.addEventListener('click', () => {
+    const blob = new Blob([buildBackupText()], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `conferelista-${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    backupStatus('Arquivo gerado — mande para o outro aparelho e use "abrir arquivo".', 'ok');
+  });
+
+  btnImportText.addEventListener('click', () => {
+    try{
+      if(applyBackup(parseBackupText(backupTextEl.value))){
+        backupTextEl.value = '';
+        backupStatus('Listas importadas.', 'ok');
+      }
+    }catch(err){
+      backupStatus(err.message, 'bad');
+    }
+  });
+
+  backupFileEl.addEventListener('change', () => {
+    const file = backupFileEl.files && backupFileEl.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try{
+        if(applyBackup(parseBackupText(reader.result))){
+          backupTextEl.value = '';
+          backupStatus(`Listas importadas de ${file.name}.`, 'ok');
+        }
+      }catch(err){
+        backupStatus(err.message, 'bad');
+      }
+      backupFileEl.value = '';
+    };
+    reader.onerror = () => {
+      backupStatus('Não consegui ler o arquivo.', 'bad');
+      backupFileEl.value = '';
+    };
+    reader.readAsText(file);
   });
 
   renderAll();
