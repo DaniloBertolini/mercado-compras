@@ -1,14 +1,30 @@
 import './styles/compare.css';
-import { assignReceipt, type Check, type Unmatched } from '../core/assign.js';
+import { assignReceipt } from '../core/assign.js';
 import { total as measureTotal } from '../core/measure.js';
-import { plannedTotal, type ReceiptLine } from '../core/types.js';
+import {
+  CENT_TOLERANCE,
+  reviewAssignment,
+  type CheckRow,
+  type ReviewRow,
+  type Severity,
+  type UnmatchedRow,
+} from '../core/review.js';
+import type { ReceiptLine } from '../core/types.js';
 import { emptyState } from '../storage/schema.js';
 import type { Store } from '../store.js';
 import { byId, type Screen } from './dom.js';
 import { escapeHtml, measureLabel, money } from './format.js';
 
-/** Abaixo disso, a diferença é arredondamento de centavo, não cobrança errada. */
-const CENT_TOLERANCE = 0.005;
+/**
+ * O título de cada grupo. A ordem é decidida no núcleo (SEVERITY_ORDER); aqui
+ * só se dá nome ao que ele já ordenou.
+ */
+const GROUP_TITLE: Record<Severity, string> = {
+  overpaid: 'cobrado a mais',
+  missing: 'não encontrado no cupom',
+  extra: 'além da lista',
+  settled: 'conferido, sem problema',
+};
 
 /** Tela 3 — anunciado contra cobrado. */
 export function mountCompareScreen(store: Store): Screen {
@@ -85,41 +101,34 @@ export function mountCompareScreen(store: Store): Screen {
     `;
   }
 
-  function checkRow(check: Check): { html: string; paid: number; diverged: boolean } {
+  function checkRowHtml(row: CheckRow): string {
+    const { check, announced, paid, diff } = row;
     const previsto = check.planned;
-    const previstoTotal = plannedTotal(previsto);
 
     if (check.matches.length === 0) {
-      return {
-        html: `
-          <div class="col-planned">
-            <span class="name">${escapeHtml(previsto.name)}</span>
-            <span class="meta"><span>x${previsto.quantity} · anunciado</span><span class="val">${money(previstoTotal)}</span></span>
-          </div>
-          <div class="col-bought ">
-            <span class="name">—</span>
-            <span class="meta"><span>não encontrado no cupom</span></span>
-            <span class="tag missing">sem correspondência</span>
-          </div>
-        `,
-        paid: 0,
-        diverged: true,
-      };
+      return `
+        <div class="col-planned">
+          <span class="name">${escapeHtml(previsto.name)}</span>
+          <span class="meta"><span>x${previsto.quantity} · anunciado</span><span class="val">${money(announced)}</span></span>
+        </div>
+        <div class="col-bought">
+          <span class="name">—</span>
+          <span class="meta"><span>não encontrado no cupom</span></span>
+          <span class="tag missing">sem correspondência</span>
+        </div>
+      `;
     }
-
-    const paid = check.matches.reduce((sum, match) => sum + measureTotal(match.line.measure), 0);
-    const diff = paid - previstoTotal;
 
     let colClass: string;
     let tagHtml: string;
-    let diverged = false;
 
+    // Mesma tolerância que o núcleo usa para agrupar, senão uma diferença de
+    // meio centavo cairia em "conferido" exibindo "+R$ 0,00 a mais".
     if (Math.abs(diff) < CENT_TOLERANCE) {
       colClass = 'diff-ok';
       tagHtml = '<span class="tag ok">preço correto</span>';
     } else if (diff > 0) {
       colClass = 'diff-bad';
-      diverged = true;
       tagHtml = `<span class="tag bad">+${money(diff)} a mais</span>`;
     } else {
       colClass = 'diff-ok';
@@ -144,25 +153,22 @@ export function mountCompareScreen(store: Store): Screen {
       )
       .join('');
 
-    return {
-      html: `
-        <div class="col-planned">
-          <span class="name">${escapeHtml(previsto.name)}</span>
-          <span class="meta"><span>x${previsto.quantity} · anunciado</span><span class="val">${money(previstoTotal)}</span></span>
-        </div>
-        <div class="col-bought ${colClass}">
-          ${itemsHtml}
-          <span class="meta"><span>total pago</span><span class="val">${money(paid)}</span></span>
-          ${tagHtml}
-          ${qtyNoteHtml}
-        </div>
-      `,
-      paid,
-      diverged,
-    };
+    return `
+      <div class="col-planned">
+        <span class="name">${escapeHtml(previsto.name)}</span>
+        <span class="meta"><span>x${previsto.quantity} · anunciado</span><span class="val">${money(announced)}</span></span>
+      </div>
+      <div class="col-bought ${colClass}">
+        ${itemsHtml}
+        <span class="meta"><span>total pago</span><span class="val">${money(paid)}</span></span>
+        ${tagHtml}
+        ${qtyNoteHtml}
+      </div>
+    `;
   }
 
-  function unmatchedRow(entry: Unmatched): string {
+  function unmatchedRowHtml(row: UnmatchedRow): string {
+    const entry = row.entry;
     const surplusOf = entry.surplusOf;
 
     // Excedente é diferente de compra fora da lista: alguém reconheceu a linha
@@ -183,11 +189,22 @@ export function mountCompareScreen(store: Store): Screen {
       </div>
       <div class="col-bought diff-bad${entry.manual ? ' manual' : ''}">
         <span class="name">${escapeHtml(entry.line.name)}</span>
-        <span class="meta"><span>${measureLabel(entry.line.measure)} · pago</span><span class="val">${money(measureTotal(entry.line.measure))}</span></span>
+        <span class="meta"><span>${measureLabel(entry.line.measure)} · pago</span><span class="val">${money(row.paid)}</span></span>
         ${tagHtml}
         ${reassignHtml(entry.line, null)}
       </div>
     `;
+  }
+
+  function rowHtml(row: ReviewRow): string {
+    return row.kind === 'check' ? checkRowHtml(row) : unmatchedRowHtml(row);
+  }
+
+  function appendGroupHead(severity: Severity, count: number): void {
+    const head = document.createElement('div');
+    head.className = `group-head ${severity}`;
+    head.innerHTML = `<span>${GROUP_TITLE[severity]}</span><span class="count">${count}</span>`;
+    listEl.appendChild(head);
   }
 
   function appendRow(html: string): void {
@@ -199,30 +216,21 @@ export function mountCompareScreen(store: Store): Screen {
 
   function render(): void {
     const state = store.get();
-    const { checks, unmatched } = assignReceipt(state.planned, state.lines, state.adjustments);
+    const { groups, announced, paid, divergingCount } = reviewAssignment(
+      assignReceipt(state.planned, state.lines, state.adjustments),
+    );
 
     listEl.innerHTML = '';
     listEl.classList.toggle('adjusting', adjusting);
     btnClearAdjust.style.display = Object.keys(state.adjustments).length ? '' : 'none';
 
-    let announced = 0;
-    let paid = 0;
-    let diverging = 0;
-
-    for (const check of checks) {
-      const row = checkRow(check);
-      announced += plannedTotal(check.planned);
-      paid += row.paid;
-      if (row.diverged) diverging += 1;
-      appendRow(row.html);
-    }
-
-    for (const entry of unmatched) {
-      paid += measureTotal(entry.line.measure);
-      appendRow(unmatchedRow(entry));
+    for (const group of groups) {
+      appendGroupHead(group.severity, group.rows.length);
+      for (const row of group.rows) appendRow(rowHtml(row));
     }
 
     const diff = paid - announced;
+    const diverging = divergingCount;
     summaryEl.innerHTML = `
       <div class="summary-row"><span>total anunciado</span><span>${money(announced)}</span></div>
       <div class="summary-row"><span>total pago</span><span>${money(paid)}</span></div>

@@ -126,6 +126,36 @@ select.reassign:focus{ border-color: var(--accent); }
 .summary-row.highlight .amt.bad{ color: var(--bad); }
 .summary-row.highlight .amt.ok{ color: var(--ok); }
 
+/* cabecalho de cada grupo: o que exige acao vem primeiro e se anuncia */
+.group-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:baseline;
+  gap:10px;
+  margin: 22px 0 0;
+  padding: 0 0 5px;
+  font-family:'Space Mono', monospace;
+  font-size:0.64rem;
+  text-transform:uppercase;
+  letter-spacing:0.12em;
+  color: var(--ink-soft);
+  border-bottom: 1px solid var(--line);
+}
+.group-head:first-child{ margin-top: 0; }
+.group-head .count{
+  font-weight:700;
+  background: var(--paper-dark);
+  border-radius: 2px;
+  padding: 1px 7px;
+}
+.group-head.overpaid{ color: var(--bad); border-bottom-color: var(--bad); }
+.group-head.overpaid .count{ background: var(--bad-bg); color: var(--bad); }
+.group-head.settled{ color: var(--ok); border-bottom-color: var(--ok); }
+.group-head.settled .count{ background: var(--ok-bg); color: var(--ok); }
+
+/* a primeira linha de cada grupo nao repete a borda do cabecalho */
+.group-head + .compare-row{ padding-top: 10px; }
+
 @media (max-width: 600px){
   /* comparativo empilhado: a barra colorida liga o pago ao anunciado */
   .compare-row{ grid-template-columns: 1fr; gap: 8px; }
@@ -143,4 +173,8 @@ select.reassign:focus{ border-color: var(--accent); }
   .adjust-bar{ justify-content: stretch; }
   .btn-adjust{ flex:1; padding: 10px 6px; font-size: 0.64rem; }
   select.reassign{ font-size: 16px; padding: 10px 6px; }
+}
+
+@media (max-width: 600px){
+  .group-head{ font-size: 0.6rem; letter-spacing: 0.08em; margin-top: 18px; }
 }
