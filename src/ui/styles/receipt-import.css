@@ -101,3 +101,38 @@ ul.preview-list li .price{ font-weight:700; }
   .import-link-row input{ flex: 1 1 100%; }
   .btn-open{ flex: 1; padding: 10px; }
 }
+
+/* leitor de QR code pela camera */
+.btn-scan{
+  width:100%;
+  padding: 12px;
+  background: var(--ink);
+  color: var(--paper);
+  font-size:0.75rem;
+  text-transform:uppercase;
+  letter-spacing:0.08em;
+  border-radius:2px;
+  margin-bottom:12px;
+}
+.btn-scan:hover{ background: var(--accent); }
+
+.scan-unavailable{
+  font-size:0.72rem;
+  line-height:1.5;
+  color: var(--ink-soft);
+  font-style: italic;
+  margin: 0 0 12px;
+}
+
+.scanner{ margin-bottom:12px; }
+.scanner video{
+  width:100%;
+  max-height: 60vh;
+  display:block;
+  background: var(--ink);
+  border: 1px dashed var(--line);
+  border-radius:2px;
+  margin-bottom:8px;
+  object-fit: cover;
+}
+.scanner .btn-open{ width:100%; padding:10px; }

@@ -65,8 +65,18 @@
       <h2 class="title">O que você pagou no caixa</h2>
       <p class="hint">Agora digite o nome e o valor exatamente como saiu no cupom fiscal.</p>
 
-      <details class="import-wrap">
+      <details class="import-wrap" id="import-wrap">
         <summary>importar da nota (QR code)</summary>
+
+        <button type="button" class="btn-scan" id="btn-scan-qr" hidden>▣ mirar no QR code da nota</button>
+        <p class="scan-unavailable" id="scan-unavailable" hidden>
+          Este navegador não lê QR code. No celular, use o app da câmera e cole o link abaixo.
+        </p>
+
+        <div class="scanner" id="scanner" hidden>
+          <video id="scanner-video" playsinline muted></video>
+          <button type="button" class="btn-open" id="btn-stop-scan">cancelar leitura</button>
+        </div>
 
         <div class="import-link-row">
           <input type="text" id="import-link" placeholder="cole aqui o link do QR code" autocomplete="off">

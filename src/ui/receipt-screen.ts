@@ -1,10 +1,12 @@
 import './styles/receipt-import.css';
 import { total as measureTotal } from '../core/measure.js';
+import { parseReceiptLink } from '../core/receipt-link.js';
 import { parseReceiptText, type RawLine } from '../core/receipt.js';
 import { uid } from '../id.js';
 import type { Store } from '../store.js';
 import { byId, type Screen } from './dom.js';
 import { escapeHtml, measureLabel, money } from './format.js';
+import { isQrScanSupported, scanQr, type QrScan } from './qr-scanner.js';
 
 /** Linha bruta esperando você confirmar que ela entra na lista paga. */
 interface PendingLine extends RawLine {
@@ -25,6 +27,11 @@ export function mountReceiptScreen(store: Store): Screen {
 
   const linkEl = byId<HTMLInputElement>('import-link');
   const btnOpenLink = byId<HTMLButtonElement>('btn-open-link');
+  const btnScan = byId<HTMLButtonElement>('btn-scan-qr');
+  const btnStopScan = byId<HTMLButtonElement>('btn-stop-scan');
+  const scannerEl = byId('scanner');
+  const scannerVideo = byId<HTMLVideoElement>('scanner-video');
+  const scanUnavailableEl = byId('scan-unavailable');
   const importTextEl = byId<HTMLTextAreaElement>('import-text');
   const btnParse = byId<HTMLButtonElement>('btn-parse-text');
   const previewListEl = byId<HTMLUListElement>('preview-list');
@@ -79,6 +86,60 @@ export function mountReceiptScreen(store: Store): Screen {
     window.open(link, '_blank', 'noopener');
   });
 
+  // O leitor nativo existe no Chrome do Android, que é onde a compra acontece,
+  // mas não no Chrome do Windows. Em vez de oferecer um botão que falha,
+  // explicamos o caminho manual.
+  let scan: QrScan | null = null;
+
+  if (isQrScanSupported()) {
+    btnScan.hidden = false;
+  } else {
+    scanUnavailableEl.hidden = false;
+  }
+
+  function closeScanner(): void {
+    scan?.stop();
+    scan = null;
+    scannerEl.hidden = true;
+    btnScan.hidden = !isQrScanSupported();
+  }
+
+  btnScan.addEventListener('click', () => {
+    scannerEl.hidden = false;
+    btnScan.hidden = true;
+    linkEl.value = '';
+
+    scan = scanQr(scannerVideo);
+    scan.found.then(
+      (raw) => {
+        if (raw === null) return; // você cancelou
+
+        const link = parseReceiptLink(raw);
+        closeScanner();
+
+        if (!link) {
+          linkEl.placeholder = 'esse QR não é um link de nota — tente outro';
+          return;
+        }
+
+        linkEl.value = link;
+        // Abrir sozinho seria pior: o portal tem captcha, e você decide a hora.
+        btnOpenLink.focus();
+      },
+      (error: unknown) => {
+        closeScanner();
+        linkEl.placeholder = error instanceof Error ? error.message : 'Não consegui ler o QR code.';
+      },
+    );
+  });
+
+  btnStopScan.addEventListener('click', closeScanner);
+
+  // Fechar o bloco com a câmera ligada deixaria ela ligada no bolso.
+  byId('import-wrap').addEventListener('toggle', (event) => {
+    if (!(event.currentTarget as HTMLDetailsElement).open) closeScanner();
+  });
+
   btnParse.addEventListener('click', () => {
     pending = parseReceiptText(importTextEl.value).map((line) => ({ ...line, checked: true }));
     renderPreview();
@@ -128,7 +189,11 @@ export function mountReceiptScreen(store: Store): Screen {
 
   return {
     render() {
-      const { lines } = store.get();
+      const state = store.get();
+      const { lines } = state;
+
+      // Sair da tela com a câmera ligada a deixaria ligada no bolso.
+      if (state.step !== 2) closeScanner();
 
       listEl.innerHTML = '';
       emptyEl.style.display = lines.length ? 'none' : 'block';
