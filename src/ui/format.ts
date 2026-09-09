@@ -21,3 +21,18 @@ export function escapeHtml(text: string): string {
   div.textContent = text;
   return div.innerHTML;
 }
+
+/**
+ * Escape para dentro de um atributo, como `value="..."`.
+ *
+ * `escapeHtml` não serve aqui: ele não escapa aspas duplas, porque dentro do
+ * corpo do HTML elas são inofensivas. Num atributo, um produto chamado
+ * `refri 2" litros` fecharia o `value` e o resto viraria marcação.
+ */
+export function escapeAttr(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
