@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MATCH_THRESHOLD, matchScore, normalize, tokenize } from './naming.js';
+import { MATCH_THRESHOLD, matchEvidence, matchScore, normalize, tokenize } from './naming.js';
 
 describe('normalize', () => {
   it('remove acentos e caixa', () => {
@@ -49,5 +49,36 @@ describe('matchScore', () => {
   it('vale zero quando não há o que comparar', () => {
     expect(matchScore([], ['arroz'])).toBe(0);
     expect(matchScore(['arroz'], [])).toBe(0);
+  });
+});
+
+describe('matchEvidence', () => {
+  const evidencia = (previsto: string, cupom: string) =>
+    matchEvidence(tokenize(previsto), tokenize(cupom));
+
+  it('vale mais quando a palavra abre o nome do cupom', () => {
+    // no leite condensado, "leite" e o produto; no chocolate, e o sabor
+    expect(evidencia('leite', 'LEITE COND TIROL TP 395G')).toBeGreaterThan(
+      evidencia('leite', 'CHOC NEUGEBAUER BR 80G AO LEITE'),
+    );
+  });
+
+  it('premia o previsto mais especifico', () => {
+    // e o inverso do que a media faz: la, "Leite" ganhava de "Leite condensado"
+    const lata = 'LEITE COND TIROL TP 395G';
+    expect(evidencia('leite condensado', lata)).toBeGreaterThan(evidencia('leite', lata));
+  });
+
+  it('deixa o chocolate ganhar do leite na barra de chocolate', () => {
+    const barra = 'CHOC NEUGEBAUER BR 80G AO LEITE';
+    expect(evidencia('chocolate', barra)).toBeGreaterThan(evidencia('leite', barra));
+  });
+
+  it('continua reconhecendo abreviacao no comeco do nome', () => {
+    expect(evidencia('desodorante', 'DESOD AER REXONA 150ML')).toBeGreaterThan(0);
+  });
+
+  it('vale zero quando nao ha nada em comum', () => {
+    expect(evidencia('guarana', 'ARROZ TIO JOAO 5KG')).toBe(0);
   });
 });

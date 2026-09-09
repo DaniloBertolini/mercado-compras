@@ -221,3 +221,46 @@ describe('regressões que já funcionavam', () => {
     expect(unmatched[0]?.surplusOf).toBeNull();
   });
 });
+
+describe('leite, chocolate e leite condensado', () => {
+  // Compra real. Tres armadilhas de uma vez: o chocolate tem a palavra "leite"
+  // no nome ("AO LEITE"), o cupom abrevia condensado como "COND", e o previsto
+  // "Leite" e mais generico que "Leite condensado".
+  const leite = planned('Leite', 8, 4.39);
+  const chocolate = planned('Chocolate', 8, 4.99);
+  const condensado = planned('Leite condensado', 5, 4.99);
+
+  const barras = Array.from({ length: 8 }, () => line('CHOC NEUGEBAUER BR 80G AO LEITE', 1, 4.99));
+  const latas = Array.from({ length: 5 }, () => line('LEITE COND TIROL TP 395G', 1, 4.99));
+
+  it('manda as latas para "Leite condensado", nao para "Leite"', () => {
+    const { checks } = assignReceipt([leite, chocolate, condensado], [...latas, ...barras]);
+    expect(matchedNames(checks, 2)).toEqual(latas.map((l) => l.name));
+  });
+
+  it('nao deixa "Leite" roubar o chocolate por causa do "AO LEITE"', () => {
+    const { checks } = assignReceipt([leite, chocolate, condensado], [...latas, ...barras]);
+    expect(matchedNames(checks, 1)).toEqual(barras.map((b) => b.name));
+  });
+
+  it('deixa "Leite" sem correspondencia, porque nao ha leite no cupom', () => {
+    const { checks } = assignReceipt([leite, chocolate, condensado], [...latas, ...barras]);
+    expect(checks[0]?.matches).toHaveLength(0);
+  });
+});
+
+describe('bolacha de chocolate contra chocolate de verdade', () => {
+  // "BISC CASAREDO PC 500G CHOCOLATE" tem a palavra inteira e correta, mas no
+  // fim do nome: o produto ali e biscoito. Com vaga apertada, o chocolate de
+  // verdade deve levar.
+  it('a barra ganha a unica vaga', () => {
+    const chocolate = planned('Chocolate', 1, 4.99);
+    const casaredo = line('BISC CASAREDO PC 500G CHOCOLATE', 1, 7.49);
+    const barra = line('CHOC NEUGEBAUER BR 80G AO LEITE', 1, 4.99);
+
+    const { checks, unmatched } = assignReceipt([chocolate], [casaredo, barra]);
+
+    expect(matchedNames(checks, 0)).toEqual([barra.name]);
+    expect(unmatched[0]?.line.name).toBe(casaredo.name);
+  });
+});

@@ -1,4 +1,4 @@
-import { MATCH_THRESHOLD, matchScore, tokenize } from './naming.js';
+import { MATCH_THRESHOLD, matchEvidence, matchScore, tokenize } from './naming.js';
 import { total, units } from './measure.js';
 import { plannedTotal, type Adjustments, type PlannedItem, type ReceiptLine } from './types.js';
 
@@ -45,7 +45,7 @@ interface Bucket {
 interface Candidate {
   readonly bucket: Bucket;
   readonly line: ReceiptLine;
-  readonly score: number;
+  readonly evidence: number;
   readonly priceGap: number;
 }
 
@@ -61,9 +61,14 @@ interface Candidate {
  * o mais fraco, com três critérios que se aplicam nesta ordem:
  *
  * 1. Ajuste manual manda, e sai da disputa antes de tudo.
- * 2. Nome primeiro; empatado o nome, leva quem tem o preço mais próximo — é o
- *    que separa três bandejas de bife pesadas diferente.
+ * 2. Leva quem tem mais evidência de ser dono da linha; empatada a evidência,
+ *    leva quem tem o preço mais próximo — é o que separa três bandejas de bife
+ *    pesadas diferente.
  * 3. Cada Previsto para ao atingir a quantidade prevista.
+ *
+ * O filtro de entrada (`matchScore`) e o critério de desempate
+ * (`matchEvidence`) são propositalmente diferentes: um responde "pode ser?",
+ * o outro responde "de quem é?".
  */
 export function assignReceipt(
   planned: readonly PlannedItem[],
@@ -112,18 +117,20 @@ export function assignReceipt(
   for (const bucket of buckets) {
     for (const line of lines) {
       if (takenBy.has(line.id) || forcedOut.has(line.id)) continue;
-      const score = matchScore(bucket.tokens, lineTokens.get(line.id) ?? []);
-      if (score < MATCH_THRESHOLD) continue;
+
+      const tokens = lineTokens.get(line.id) ?? [];
+      if (matchScore(bucket.tokens, tokens) < MATCH_THRESHOLD) continue;
+
       candidates.push({
         bucket,
         line,
-        score,
+        evidence: matchEvidence(bucket.tokens, tokens),
         priceGap: Math.abs(total(line.measure) - bucket.plannedTotal),
       });
     }
   }
 
-  candidates.sort((a, b) => b.score - a.score || a.priceGap - b.priceGap);
+  candidates.sort((a, b) => b.evidence - a.evidence || a.priceGap - b.priceGap);
 
   // 3) Distribui do par mais forte para o mais fraco, respeitando a quantidade.
   for (const candidate of candidates) {
