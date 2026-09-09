@@ -310,9 +310,58 @@ ul.list li .rm:hover{ opacity:1; color: var(--bad); }
 .col-bought.diff-bad .name, .col-bought.diff-bad .meta .val{ color: var(--bad); font-weight:700; }
 .col-bought.diff-ok .meta .val{ color: var(--ok); font-weight:700; }
 
+/* barra de ajuste manual */
+.adjust-bar{
+  display:flex;
+  justify-content:flex-end;
+  gap:8px;
+  margin-bottom:8px;
+}
+.btn-adjust{
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--ink-soft);
+  font-size:0.66rem;
+  text-transform:uppercase;
+  letter-spacing:0.06em;
+  padding: 6px 10px;
+  border-radius:2px;
+}
+.btn-adjust:hover{ border-color: var(--ink); color: var(--ink); }
+.btn-adjust.on{
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--paper);
+}
+
+/* o seletor de destino só existe no modo ajuste — fora dele o recibo fica limpo */
+select.reassign{
+  display:none;
+  flex: 1 1 100%;
+  margin-top:6px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius:2px;
+  padding: 6px 4px;
+  font-family: inherit;
+  font-size: 0.72rem;
+  color: var(--ink);
+  outline:none;
+}
+select.reassign:focus{ border-color: var(--accent); }
+.compare-wrap.adjusting select.reassign{ display:block; }
+
+/* marca discreta de linha que você mesmo apontou */
+.matched-item.manual .name::before,
+.col-bought.manual > .name::before{
+  content:"⇄ ";
+  color: var(--accent);
+}
+
 .matched-item{
   display:flex;
   align-items:center;
+  flex-wrap: wrap;
   gap:6px;
   font-size:0.78rem;
   color: var(--ink-soft);
@@ -581,4 +630,9 @@ ul.preview-list li .price{ font-weight:700; }
   .col-bought.diff-ok{ border-left-color: var(--ok); }
 
   .summary{ padding: 14px; }
+
+  /* alvo de dedo maior; 16px no select evita o zoom automatico ao abrir */
+  .adjust-bar{ justify-content: stretch; }
+  .btn-adjust{ flex:1; padding: 10px 6px; font-size: 0.64rem; }
+  select.reassign{ font-size: 16px; padding: 10px 6px; }
 }
