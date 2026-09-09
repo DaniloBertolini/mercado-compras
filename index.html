@@ -144,22 +144,29 @@
     <!-- BACKUP: levar a lista de um aparelho para outro -->
     <details class="backup-wrap">
       <summary>backup — levar do celular pro pc</summary>
-      <p class="hint">Os dados ficam só neste aparelho. Para ver no outro, exporte aqui e importe lá — o código é texto puro, dá para mandar por WhatsApp para você mesmo.</p>
+      <p class="hint">A lista fica guardada só neste aparelho. Para vê-la no outro, mande o código daqui e traga lá.</p>
 
-      <div class="backup-row">
-        <button type="button" class="btn-open" id="btn-copy-backup">copiar código</button>
-        <button type="button" class="btn-open" id="btn-download-backup">baixar arquivo</button>
-      </div>
+      <section class="backup-half">
+        <h3 class="backup-title">mandar esta lista daqui</h3>
+        <div class="backup-row">
+          <button type="button" class="btn-open" id="btn-copy-backup">copiar código</button>
+          <button type="button" class="btn-open" id="btn-download-backup">baixar arquivo</button>
+        </div>
+        <textarea class="paste-box" id="backup-out" readonly placeholder="o código aparece aqui quando você tocar em copiar"></textarea>
+        <p class="backup-note">Cole numa mensagem para você mesmo e abra no outro aparelho.</p>
+      </section>
 
-      <textarea class="paste-box" id="backup-text" placeholder="o código exportado aparece aqui — ou cole aqui o código vindo do outro aparelho"></textarea>
-
-      <div class="backup-row">
-        <button type="button" class="btn-parse" id="btn-import-text">importar código colado</button>
-        <label class="btn-open file-label">
-          abrir arquivo
-          <input type="file" id="backup-file" accept=".json,application/json,text/plain" hidden>
-        </label>
-      </div>
+      <section class="backup-half">
+        <h3 class="backup-title">trazer de outro aparelho</h3>
+        <textarea class="paste-box" id="backup-in" placeholder="cole aqui o código que você copiou no outro aparelho"></textarea>
+        <div class="backup-row">
+          <button type="button" class="btn-parse" id="btn-import-text">importar código colado</button>
+          <label class="btn-open file-label">
+            abrir arquivo
+            <input type="file" id="backup-file" accept=".json,application/json,text/plain" hidden>
+          </label>
+        </div>
+      </section>
 
       <div class="backup-status" id="backup-status" role="status"></div>
     </details>

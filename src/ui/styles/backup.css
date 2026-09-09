@@ -48,3 +48,26 @@
   .backup-row{ flex-wrap: wrap; }
   .backup-row > *{ flex: 1 1 100%; padding: 12px; }
 }
+
+/* as duas metades: mandar daqui e trazer de la */
+.backup-half + .backup-half{
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px dashed var(--line);
+}
+.backup-title{
+  font-family:'Space Mono', monospace;
+  font-size:0.7rem;
+  text-transform:uppercase;
+  letter-spacing:0.1em;
+  color: var(--ink);
+  margin: 0 0 10px;
+}
+.backup-note{
+  font-size:0.72rem;
+  line-height:1.5;
+  color: var(--ink-soft);
+  margin: 0;
+}
+/* a caixa de saida e so para leitura: o texto sai daqui, nao entra */
+#backup-out{ background: var(--paper-dark); }

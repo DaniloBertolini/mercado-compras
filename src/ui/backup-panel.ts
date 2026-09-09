@@ -11,7 +11,11 @@ import { byId } from './dom.js';
  * precisar exportar de qualquer passo da compra.
  */
 export function mountBackupPanel(store: Store): void {
-  const textEl = byId<HTMLTextAreaElement>('backup-text');
+  // Duas caixas, não uma: enquanto a mesma servia para exportar e importar, não
+  // dava para saber, olhando, se aquele texto era o que ia sair ou o que ia
+  // entrar — e importar o próprio código do aparelho não faz sentido nenhum.
+  const outEl = byId<HTMLTextAreaElement>('backup-out');
+  const inEl = byId<HTMLTextAreaElement>('backup-in');
   const statusEl = byId('backup-status');
   const fileEl = byId<HTMLInputElement>('backup-file');
   const btnCopy = byId<HTMLButtonElement>('btn-copy-backup');
@@ -40,8 +44,8 @@ export function mountBackupPanel(store: Store): void {
   }
 
   function selectFallback(): boolean {
-    textEl.focus();
-    textEl.setSelectionRange(0, textEl.value.length);
+    outEl.focus();
+    outEl.setSelectionRange(0, outEl.value.length);
     try {
       return document.execCommand('copy');
     } catch {
@@ -67,7 +71,7 @@ export function mountBackupPanel(store: Store): void {
   function importFrom(text: string, origem?: string): void {
     try {
       if (applyImported(parseBackup(text))) {
-        textEl.value = '';
+        inEl.value = '';
         status(origem ? `Listas importadas de ${origem}.` : 'Listas importadas.', 'ok');
       }
     } catch (error) {
@@ -77,7 +81,7 @@ export function mountBackupPanel(store: Store): void {
 
   btnCopy.addEventListener('click', () => {
     const text = buildBackup(store.get());
-    textEl.value = text;
+    outEl.value = text;
 
     void copyToClipboard(text).then((copied) => {
       status(
@@ -103,7 +107,7 @@ export function mountBackupPanel(store: Store): void {
   });
 
   btnImport.addEventListener('click', () => {
-    importFrom(textEl.value);
+    importFrom(inEl.value);
   });
 
   fileEl.addEventListener('change', () => {
