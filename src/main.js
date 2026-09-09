@@ -2,95 +2,22 @@ import { assignReceipt } from './core/assign.js';
 import { total as measureTotal } from './core/measure.js';
 import { parseReceiptText } from './core/receipt.js';
 import { plannedTotal } from './core/types.js';
+import { uid } from './id.js';
+import { backupFileName, buildBackup, parseBackup } from './storage/backup.js';
+import { loadState, saveState } from './storage/local.js';
+import { emptyState } from './storage/schema.js';
 
 (function(){
   "use strict";
 
-  const STORAGE_KEY = "conferelista_v1";
-
-  // overrides: id da linha do cupom -> id do item planejado que o usuário
-  // escolheu à mão (ou null para "isto não estava na lista").
-  const defaultState = { step: 1, planned: [], bought: [], overrides: {} };
-  let state = load();
-
-  function uid(){
-    return Math.random().toString(36).slice(2, 10);
-  }
-
-  // Os ajustes manuais apontam para itens, não para posições: sem id próprio,
-  // remover um item da lista faria todos os ajustes seguintes escorregarem.
-  // Listas salvas antes disso são migradas aqui, na primeira leitura.
-  function ensureIds(st){
-    if(!Array.isArray(st.planned)) st.planned = [];
-    if(!Array.isArray(st.bought)) st.bought = [];
-    if(!st.overrides || typeof st.overrides !== 'object') st.overrides = {};
-
-    st.planned.forEach(item => { if(!item.id) item.id = uid(); });
-    st.bought.forEach(item => { if(!item.id) item.id = uid(); });
-
-    // ajuste que aponta para item já apagado vira lixo silencioso
-    const plannedIds = new Set(st.planned.map(p => p.id));
-    const boughtIds = new Set(st.bought.map(b => b.id));
-    Object.keys(st.overrides).forEach(boughtId => {
-      const target = st.overrides[boughtId];
-      if(!boughtIds.has(boughtId) || (target !== null && !plannedIds.has(target))){
-        delete st.overrides[boughtId];
-      }
-    });
-    return st;
-  }
-
-  function load(){
-    try{
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if(!raw) return structuredClone(defaultState);
-      const parsed = JSON.parse(raw);
-      return ensureIds({ ...structuredClone(defaultState), ...parsed });
-    }catch(e){
-      return structuredClone(defaultState);
-    }
-  }
+  let state = loadState();
 
   function save(){
-    ensureIds(state);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    saveState(state);
   }
 
   function fmtBRL(n){
     return n.toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
-  }
-
-
-  // ---------- Fronteira com o núcleo ----------
-  // O localStorage ainda guarda o formato antigo (qty + price + isWeight); o
-  // núcleo fala em Medida. A tradução mora aqui, na borda. A etapa 3 leva a
-  // Medida para dentro do armazenamento e estas funções somem.
-  function storedMeasure(stored){
-    const qty = stored.qty || 1;
-    return stored.isWeight
-      ? { kind: 'weight', kilos: qty, pricePerKilo: stored.price }
-      : { kind: 'units', count: qty, unitPrice: stored.price };
-  }
-
-  function toReceiptLine(stored){
-    return { id: stored.id, name: stored.name, measure: storedMeasure(stored) };
-  }
-
-  function toPlannedItem(stored){
-    return { id: stored.id, name: stored.name, quantity: stored.qty, unitPrice: stored.price };
-  }
-
-  function rawLineToStored(raw){
-    const entry = { id: uid(), name: raw.name };
-    if(raw.measure.kind === 'weight'){
-      entry.qty = raw.measure.kilos;
-      entry.price = raw.measure.pricePerKilo;
-      entry.isWeight = true;
-    } else {
-      entry.qty = raw.measure.count;
-      entry.price = raw.measure.unitPrice;
-    }
-    return entry;
   }
 
   function measureLabel(measure){
@@ -99,77 +26,10 @@ import { plannedTotal } from './core/types.js';
       : `x${Math.round(measure.count)}`;
   }
 
-  // ---------- Backup (exportar / importar entre aparelhos) ----------
-  // O estado é só um JSON, então o "código" exportado é o próprio JSON numa linha:
-  // dá para colar no WhatsApp ou salvar como arquivo, e a importação aceita os dois.
-  const BACKUP_VERSION = 1;
-
-  function buildBackupText(){
-    return JSON.stringify({
-      app: 'conferelista',
-      version: BACKUP_VERSION,
-      exportedAt: new Date().toISOString(),
-      state,
-    });
-  }
-
-  // Nunca confia no que veio de fora: o texto pode ter sido truncado no meio do
-  // caminho (WhatsApp, e-mail) ou editado à mão.
-  function sanitizeItems(arr, forcedQty){
-    if(!Array.isArray(arr)) return [];
-    return arr.map(raw => {
-      if(!raw || typeof raw !== 'object') return null;
-      const name = String(raw.name == null ? '' : raw.name).trim();
-      const price = Number(raw.price);
-      if(!name || !isFinite(price)) return null;
-      const qty = Number(raw.qty);
-      const item = { id: typeof raw.id === 'string' && raw.id ? raw.id : uid(), name, price };
-      if(isFinite(qty) && qty > 0) item.qty = qty;
-      else if(forcedQty) item.qty = 1;
-      if(raw.isWeight === true) item.isWeight = true;
-      return item;
-    }).filter(Boolean);
-  }
-
-  function parseBackupText(text){
-    const raw = String(text || '').trim();
-    if(!raw) throw new Error('Cole o código exportado antes de importar.');
-
-    let data;
-    try{
-      data = JSON.parse(raw);
-    }catch(e){
-      throw new Error('Código inválido — copie o texto inteiro, do "{" até o "}" final.');
-    }
-
-    const payload = data && typeof data === 'object' && data.state && typeof data.state === 'object'
-      ? data.state
-      : data;
-
-    if(!payload || typeof payload !== 'object' || (!Array.isArray(payload.planned) && !Array.isArray(payload.bought))){
-      throw new Error('Não encontrei nenhuma lista nesse código.');
-    }
-
-    // ensureIds descarta sozinho os ajustes que apontarem para itens que não
-    // sobreviveram à limpeza acima
-    const imported = ensureIds({
-      step: [1,2,3].includes(Number(payload.step)) ? Number(payload.step) : 1,
-      planned: sanitizeItems(payload.planned, true),
-      bought: sanitizeItems(payload.bought, false),
-      overrides: payload.overrides && typeof payload.overrides === 'object'
-        ? { ...payload.overrides }
-        : {},
-    });
-
-    if(!imported.planned.length && !imported.bought.length){
-      throw new Error('O código foi lido, mas as duas listas estão vazias.');
-    }
-    return imported;
-  }
 
   function applyBackup(imported){
-    const hasData = state.planned.length || state.bought.length;
-    const resumo = `${imported.planned.length} item(ns) planejado(s) e ${imported.bought.length} pago(s)`;
+    const hasData = state.planned.length || state.lines.length;
+    const resumo = `${imported.planned.length} item(ns) planejado(s) e ${imported.lines.length} pago(s)`;
     const aviso = hasData
       ? `Importar ${resumo}?\n\nIsto SUBSTITUI a lista que já está neste aparelho.`
       : `Importar ${resumo}?`;
@@ -244,12 +104,12 @@ import { plannedTotal } from './core/types.js';
     emptyPlannedEl.style.display = state.planned.length ? 'none' : 'block';
     let total = 0;
     state.planned.forEach((item, idx) => {
-      total += item.qty * item.price;
+      total += plannedTotal(item);
       const li = document.createElement('li');
       li.innerHTML = `
         <span class="name">${escapeHtml(item.name)}</span>
-        <span class="qty">x${item.qty}</span>
-        <span class="price">${fmtBRL(item.price)}</span>
+        <span class="qty">x${item.quantity}</span>
+        <span class="price">${fmtBRL(item.unitPrice)}</span>
         <button class="rm" data-idx="${idx}" title="remover">×</button>
       `;
       listPlannedEl.appendChild(li);
@@ -260,23 +120,22 @@ import { plannedTotal } from './core/types.js';
 
   function renderBought(){
     listBoughtEl.innerHTML = '';
-    emptyBoughtEl.style.display = state.bought.length ? 'none' : 'block';
+    emptyBoughtEl.style.display = state.lines.length ? 'none' : 'block';
     let total = 0;
-    state.bought.forEach((item, idx) => {
-      const measure = storedMeasure(item);
-      const lineTotal = measureTotal(measure);
+    state.lines.forEach((item, idx) => {
+      const lineTotal = measureTotal(item.measure);
       total += lineTotal;
       const li = document.createElement('li');
       li.innerHTML = `
         <span class="name">${escapeHtml(item.name)}</span>
-        <span class="qty">${measureLabel(measure)}</span>
+        <span class="qty">${measureLabel(item.measure)}</span>
         <span class="price">${fmtBRL(lineTotal)}</span>
         <button class="rm" data-idx="${idx}" title="remover">×</button>
       `;
       listBoughtEl.appendChild(li);
     });
     totalBoughtEl.textContent = fmtBRL(total);
-    btnFinishBought.disabled = state.bought.length === 0;
+    btnFinishBought.disabled = state.lines.length === 0;
   }
 
   function renderPreview(){
@@ -302,7 +161,7 @@ import { plannedTotal } from './core/types.js';
   function reassignHtml(b, currentPlannedId){
     const opts = state.planned.map(p => `
       <option value="${p.id}"${p.id === currentPlannedId ? ' selected' : ''}>
-        ${escapeHtml(p.name)} · ${fmtBRL(p.price)}
+        ${escapeHtml(p.name)} · ${fmtBRL(p.unitPrice)}
       </option>
     `).join('');
     return `
@@ -316,14 +175,10 @@ import { plannedTotal } from './core/types.js';
   function renderCompare(){
     compareListEl.innerHTML = '';
 
-    const { checks, unmatched } = assignReceipt(
-      state.planned.map(toPlannedItem),
-      state.bought.map(toReceiptLine),
-      state.overrides
-    );
+    const { checks, unmatched } = assignReceipt(state.planned, state.lines, state.adjustments);
 
     compareListEl.classList.toggle('adjusting', adjusting);
-    btnClearAdjust.style.display = Object.keys(state.overrides).length ? '' : 'none';
+    btnClearAdjust.style.display = Object.keys(state.adjustments).length ? '' : 'none';
 
     let totalPlanned = 0, totalBought = 0, mismatches = 0;
 
@@ -465,7 +320,7 @@ import { plannedTotal } from './core/types.js';
     const qty = Number(qtyEl.value) || 1;
     const price = Number(priceEl.value);
     if(!name || isNaN(price)) return;
-    state.planned.push({ id: uid(), name, qty, price });
+    state.planned.push({ id: uid(), name, quantity: qty, unitPrice: price });
     save();
     renderPlanned();
     nameEl.value = ''; qtyEl.value = '1'; priceEl.value = '';
@@ -494,7 +349,7 @@ import { plannedTotal } from './core/types.js';
     const name = nameEl.value.trim();
     const price = Number(priceEl.value);
     if(!name || isNaN(price)) return;
-    state.bought.push({ id: uid(), name, price });
+    state.lines.push({ id: uid(), name, measure: { kind: 'units', count: 1, unitPrice: price } });
     save();
     renderBought();
     nameEl.value = ''; priceEl.value = '';
@@ -504,7 +359,7 @@ import { plannedTotal } from './core/types.js';
   listBoughtEl.addEventListener('click', e => {
     const btn = e.target.closest('.rm');
     if(!btn) return;
-    state.bought.splice(Number(btn.dataset.idx), 1);
+    state.lines.splice(Number(btn.dataset.idx), 1);
     save();
     renderBought();
   });
@@ -516,7 +371,7 @@ import { plannedTotal } from './core/types.js';
   });
 
   btnFinishBought.addEventListener('click', () => {
-    if(state.bought.length === 0) return;
+    if(state.lines.length === 0) return;
     state.step = 3;
     save();
     renderAll();
@@ -530,7 +385,7 @@ import { plannedTotal } from './core/types.js';
 
   btnReset.addEventListener('click', () => {
     if(!confirm('Resetar tudo para a próxima compra?')) return;
-    state = structuredClone(defaultState);
+    state = emptyState();
     save();
     renderAll();
   });
@@ -544,7 +399,7 @@ import { plannedTotal } from './core/types.js';
 
   btnClearAdjust.addEventListener('click', () => {
     if(!confirm('Desfazer todos os ajustes manuais e voltar ao automático?')) return;
-    state.overrides = {};
+    state.adjustments = {};
     save();
     renderCompare();
   });
@@ -552,7 +407,7 @@ import { plannedTotal } from './core/types.js';
   compareListEl.addEventListener('change', e => {
     const sel = e.target.closest('select.reassign');
     if(!sel) return;
-    state.overrides[sel.dataset.boughtId] = sel.value === '' ? null : sel.value;
+    state.adjustments[sel.dataset.boughtId] = sel.value === '' ? null : sel.value;
     save();
     renderCompare();
   });
@@ -578,7 +433,7 @@ import { plannedTotal } from './core/types.js';
 
   btnConfirmImport.addEventListener('click', () => {
     previewItems.filter(i => i.checked).forEach(i => {
-      state.bought.push(rawLineToStored(i));
+      state.lines.push({ id: uid(), name: i.name, measure: i.measure });
     });
     save();
     renderBought();
@@ -613,7 +468,7 @@ import { plannedTotal } from './core/types.js';
   }
 
   btnCopyBackup.addEventListener('click', () => {
-    const text = buildBackupText();
+    const text = buildBackup(state);
     backupTextEl.value = text;
     copyToClipboard(text).then(ok => {
       backupStatus(
@@ -625,11 +480,11 @@ import { plannedTotal } from './core/types.js';
   });
 
   btnDownloadBackup.addEventListener('click', () => {
-    const blob = new Blob([buildBackupText()], { type: 'application/json' });
+    const blob = new Blob([buildBackup(state)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `conferelista-${new Date().toISOString().slice(0,10)}.json`;
+    a.download = backupFileName();
     a.click();
     URL.revokeObjectURL(url);
     backupStatus('Arquivo gerado — mande para o outro aparelho e use "abrir arquivo".', 'ok');
@@ -637,7 +492,7 @@ import { plannedTotal } from './core/types.js';
 
   btnImportText.addEventListener('click', () => {
     try{
-      if(applyBackup(parseBackupText(backupTextEl.value))){
+      if(applyBackup(parseBackup(backupTextEl.value))){
         backupTextEl.value = '';
         backupStatus('Listas importadas.', 'ok');
       }
@@ -652,7 +507,7 @@ import { plannedTotal } from './core/types.js';
     const reader = new FileReader();
     reader.onload = () => {
       try{
-        if(applyBackup(parseBackupText(reader.result))){
+        if(applyBackup(parseBackup(reader.result))){
           backupTextEl.value = '';
           backupStatus(`Listas importadas de ${file.name}.`, 'ok');
         }
