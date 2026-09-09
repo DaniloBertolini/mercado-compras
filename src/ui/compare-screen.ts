@@ -21,7 +21,7 @@ import { escapeHtml, measureLabel, money } from './format.js';
  */
 const GROUP_TITLE: Record<Severity, string> = {
   overpaid: 'cobrado a mais',
-  missing: 'não encontrado no cupom',
+  missing: 'faltando no cupom',
   extra: 'além da lista',
   settled: 'conferido, sem problema',
 };
@@ -101,15 +101,34 @@ export function mountCompareScreen(store: Store): Screen {
     `;
   }
 
+  /**
+   * A coluna do anunciado espelha a do cupom: primeiro o preço de cada unidade,
+   * depois o total. Sem o unitário não dá para comparar preço com preço — o
+   * cupom mostra "R$ 4,59 cada" e o anunciado mostrava só o total de oito.
+   */
+  function plannedColHtml(row: CheckRow): string {
+    const previsto = row.check.planned;
+
+    const unitLine =
+      previsto.quantity > 1
+        ? `<span class="meta"><span>x${previsto.quantity} · ${money(previsto.unitPrice)} cada</span></span>`
+        : '';
+
+    return `
+      <span class="name">${escapeHtml(previsto.name)}</span>
+      ${unitLine}
+      <span class="meta"><span>total anunciado</span><span class="val">${money(row.announced)}</span></span>
+    `;
+  }
+
   function checkRowHtml(row: CheckRow): string {
-    const { check, announced, paid, diff } = row;
+    const { check, paid, diff } = row;
     const previsto = check.planned;
 
     if (check.matches.length === 0) {
       return `
         <div class="col-planned">
-          <span class="name">${escapeHtml(previsto.name)}</span>
-          <span class="meta"><span>x${previsto.quantity} · anunciado</span><span class="val">${money(announced)}</span></span>
+          ${plannedColHtml(row)}
         </div>
         <div class="col-bought">
           <span class="name">—</span>
@@ -122,6 +141,11 @@ export function mountCompareScreen(store: Store): Screen {
     let colClass: string;
     let tagHtml: string;
 
+    // Com várias unidades, saber que são 20 centavos em cada muda a decisão de
+    // reclamar mais do que saber que o total deu R$ 1,60.
+    const unitNote =
+      row.unitDiff === null ? '' : ` · ${money(Math.abs(row.unitDiff))} em cada`;
+
     // Mesma tolerância que o núcleo usa para agrupar, senão uma diferença de
     // meio centavo cairia em "conferido" exibindo "+R$ 0,00 a mais".
     if (Math.abs(diff) < CENT_TOLERANCE) {
@@ -129,10 +153,10 @@ export function mountCompareScreen(store: Store): Screen {
       tagHtml = '<span class="tag ok">preço correto</span>';
     } else if (diff > 0) {
       colClass = 'diff-bad';
-      tagHtml = `<span class="tag bad">+${money(diff)} a mais</span>`;
+      tagHtml = `<span class="tag bad">+${money(diff)} a mais${unitNote}</span>`;
     } else {
       colClass = 'diff-ok';
-      tagHtml = `<span class="tag ok">${money(Math.abs(diff))} a menos</span>`;
+      tagHtml = `<span class="tag ok">${money(Math.abs(diff))} a menos${unitNote}</span>`;
     }
 
     const qtyNoteHtml =
@@ -155,8 +179,7 @@ export function mountCompareScreen(store: Store): Screen {
 
     return `
       <div class="col-planned">
-        <span class="name">${escapeHtml(previsto.name)}</span>
-        <span class="meta"><span>x${previsto.quantity} · anunciado</span><span class="val">${money(announced)}</span></span>
+        ${plannedColHtml(row)}
       </div>
       <div class="col-bought ${colClass}">
         ${itemsHtml}

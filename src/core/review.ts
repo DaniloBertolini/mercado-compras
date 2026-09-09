@@ -17,7 +17,7 @@ export const CENT_TOLERANCE = 0.005;
 export type Severity =
   /** pagou mais que o anunciado — o motivo de o app existir */
   | 'overpaid'
-  /** estava na lista e não apareceu no cupom */
+  /** não apareceu no cupom, ou apareceu em quantidade menor que a prevista */
   | 'missing'
   /** veio no cupom além do que a lista previa */
   | 'extra'
@@ -34,6 +34,15 @@ export interface CheckRow {
   readonly paid: number;
   /** positivo = pagou a mais */
   readonly diff: number;
+  /**
+   * Quanto cada unidade saiu mais cara que o anunciado.
+   *
+   * `null` quando a conta não faria sentido: item de uma unidade só (a
+   * diferença já é a total), ou quando o cupom trouxe uma quantidade diferente
+   * da prevista — aí a diferença mistura preço errado com quantidade errada, e
+   * dividir uma pela outra mentiria.
+   */
+  readonly unitDiff: number | null;
 }
 
 export interface UnmatchedRow {
@@ -63,8 +72,15 @@ function paidFor(check: Check): number {
 
 function severityOf(row: ReviewRow): Severity {
   if (row.kind === 'unmatched') return 'extra';
-  if (row.check.matches.length === 0) return 'missing';
-  return row.diff > CENT_TOLERANCE ? 'overpaid' : 'settled';
+  if (row.diff > CENT_TOLERANCE) return 'overpaid';
+
+  // Faltar unidade não é economia. Prever 8 e achar 5 sai "R$ 14,97 a menos",
+  // o que numa lista de "conferido, sem problema" leria como se estivesse tudo
+  // certo — quando na verdade três itens não apareceram no cupom.
+  const { matches, matchedUnits, planned } = row.check;
+  if (matches.length === 0 || matchedUnits < planned.quantity) return 'missing';
+
+  return 'settled';
 }
 
 /**
@@ -88,7 +104,19 @@ export function reviewAssignment(assignment: Assignment): Review {
   for (const check of assignment.checks) {
     const announced = plannedTotal(check.planned);
     const paid = paidFor(check);
-    rows.push({ kind: 'check', check, announced, paid, diff: paid - announced });
+    const diff = paid - announced;
+
+    const quantity = check.planned.quantity;
+    const comparable = check.matches.length > 0 && check.matchedUnits === quantity && quantity > 1;
+
+    rows.push({
+      kind: 'check',
+      check,
+      announced,
+      paid,
+      diff,
+      unitDiff: comparable ? diff / quantity : null,
+    });
   }
 
   for (const entry of assignment.unmatched) {

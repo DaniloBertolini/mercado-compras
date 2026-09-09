@@ -87,13 +87,12 @@ describe('o que conta como problema', () => {
   });
 
   it('diferença de centavo é arredondamento, não cobrança errada', () => {
-    const r = review([prev('Banana', 3, 3.33)], [line('BANANA PRATA KG', 10)]);
+    // um item só, para isolar a tolerância da questão de quantidade
+    const umCentavo = review([prev('Banana', 1, 9.99)], [line('BANANA PRATA KG', 10)]);
+    expect(severities(umCentavo)).toEqual(['overpaid']);
 
-    // 3 x 3,33 = 9,99 contra 10,00
-    expect(severities(r)).toEqual(['overpaid']);
-
-    const semDiferenca = review([prev('Banana', 3, 3.3333)], [line('BANANA PRATA KG', 10)]);
-    expect(severities(semDiferenca)).toEqual(['settled']);
+    const fracaoDeCentavo = review([prev('Banana', 1, 9.9999)], [line('BANANA PRATA KG', 10)]);
+    expect(severities(fracaoDeCentavo)).toEqual(['settled']);
   });
 
   it('conta como divergente o cobrado a mais e o não encontrado', () => {
@@ -123,5 +122,53 @@ describe('totais', () => {
 
     expect(r.announced).toBeCloseTo(39.92, 2);
     expect(r.paid).toBeCloseTo(39.92, 2);
+  });
+});
+
+describe('diferenca por unidade', () => {
+  it('diz quanto cada unidade saiu mais cara', () => {
+    // caso real: 8 leites anunciados a 4,39 e cobrados a 4,59
+    const r = review([prev('Leite', 8, 4.39)], [line('LEITE TIROL INTEG ROSCA TP 1L', 4.59, 8)]);
+    const linha = r.groups[0]?.rows[0] as CheckRow;
+
+    expect(linha.diff).toBeCloseTo(1.6, 2);
+    expect(linha.unitDiff).toBeCloseTo(0.2, 2);
+  });
+
+  it('nao repete a conta quando e uma unidade so', () => {
+    const r = review([prev('Arroz', 1, 20)], [line('ARROZ TIO JOAO 5KG', 25)]);
+    expect((r.groups[0]?.rows[0] as CheckRow).unitDiff).toBeNull();
+  });
+
+  it('nao calcula quando a quantidade encontrada nao bate', () => {
+    // 5 de 8 encontrados: a diferenca mistura preco errado com item faltando
+    const r = review([prev('Chocolate', 8, 4.99)], [line('CHOC NEUGEBAUER', 4.99, 5)]);
+    expect((r.groups[0]?.rows[0] as CheckRow).unitDiff).toBeNull();
+  });
+
+  it('vale tambem quando saiu mais barato', () => {
+    const r = review([prev('Leite', 4, 5)], [line('LEITE TIROL 1L', 4.5, 4)]);
+    const linha = r.groups[0]?.rows[0] as CheckRow;
+    expect(linha.unitDiff).toBeCloseTo(-0.5, 2);
+  });
+});
+
+describe('quantidade incompleta', () => {
+  it('nao entra em "conferido" quando faltou unidade', () => {
+    // prever 8 e achar 5 sai "R$ 14,97 a menos": parece economia, e nao e
+    const r = review([prev('Chocolate', 8, 4.99)], [line('CHOC NEUGEBAUER', 4.99, 5)]);
+
+    expect(severities(r)).toEqual(['missing']);
+    expect(r.divergingCount).toBe(1);
+  });
+
+  it('cobranca a mais tem prioridade sobre quantidade faltando', () => {
+    const r = review([prev('Chocolate', 8, 2)], [line('CHOC NEUGEBAUER', 9, 5)]);
+    expect(severities(r)).toEqual(['overpaid']);
+  });
+
+  it('quantidade completa e preco certo continuam em conferido', () => {
+    const r = review([prev('Chocolate', 8, 4.99)], [line('CHOC NEUGEBAUER', 4.99, 8)]);
+    expect(severities(r)).toEqual(['settled']);
   });
 });
