@@ -1,3 +1,8 @@
+import { assignReceipt } from './core/assign.js';
+import { total as measureTotal } from './core/measure.js';
+import { parseReceiptText } from './core/receipt.js';
+import { plannedTotal } from './core/types.js';
+
 (function(){
   "use strict";
 
@@ -55,224 +60,43 @@
     return n.toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
   }
 
-  function normalize(str){
-    return str.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+
+  // ---------- Fronteira com o núcleo ----------
+  // O localStorage ainda guarda o formato antigo (qty + price + isWeight); o
+  // núcleo fala em Medida. A tradução mora aqui, na borda. A etapa 3 leva a
+  // Medida para dentro do armazenamento e estas funções somem.
+  function storedMeasure(stored){
+    const qty = stored.qty || 1;
+    return stored.isWeight
+      ? { kind: 'weight', kilos: qty, pricePerKilo: stored.price }
+      : { kind: 'units', count: qty, unitPrice: stored.price };
   }
 
-  // Mercados abreviam nomes no cupom (ex: "DESOD" em vez de "desodorante") e trocam
-  // a ordem das palavras (ex: "TOALHA PAPEL" em vez de "papel toalha"). Por isso o
-  // match compara palavra por palavra, aceitando quando uma é prefixo da outra,
-  // em vez de exigir que o nome inteiro apareça igual dentro do outro.
-  const STOPWORDS = new Set(['de','da','do','das','dos','com','sem','para','por','em','no','na','e','ou']);
-  const TOKEN_MIN_LEN = 3;
-
-  function tokenize(str){
-    return normalize(str).split(/[^a-z0-9]+/).filter(t => t.length >= TOKEN_MIN_LEN && !STOPWORDS.has(t));
+  function toReceiptLine(stored){
+    return { id: stored.id, name: stored.name, measure: storedMeasure(stored) };
   }
 
-  // O cupom abrevia ("DESOD" por "desodorante"), então prefixo precisa contar —
-  // mas menos que a palavra inteira. Sem esse desnível, "BISC MINUETO CHOC/BAUN"
-  // disputa a palavra "chocolate" de igual para igual com o chocolate de verdade.
-  const PREFIX_WEIGHT = 0.6;
-
-  function tokenScore(a, b){
-    if(a === b) return 1;
-    if(a.startsWith(b) || b.startsWith(a)) return PREFIX_WEIGHT;
-    return 0;
+  function toPlannedItem(stored){
+    return { id: stored.id, name: stored.name, quantity: stored.qty, unitPrice: stored.price };
   }
 
-  // Média, entre as palavras do nome planejado, do quanto cada uma encontrou
-  // correspondente no nome do cupom.
-  function matchScore(plannedTokens, boughtTokens){
-    if(!plannedTokens.length || !boughtTokens.length) return 0;
-    const sum = plannedTokens.reduce(
-      (acc, pt) => acc + Math.max(...boughtTokens.map(bt => tokenScore(pt, bt))),
-      0
-    );
-    return sum / plannedTokens.length;
-  }
-
-  // Item vendido por peso vem do cupom como 0,376 kg × preço do quilo. Para
-  // contagem ele vale uma unidade, senão três bandejas de bife viram "1,25 un".
-  function unitsOf(b){
-    return b.isWeight ? 1 : (b.qty || 1);
-  }
-
-  function totalOf(b){
-    return (b.qty || 1) * b.price;
-  }
-
-  function qtyLabel(b){
-    const qty = b.qty || 1;
-    return b.isWeight
-      ? `${qty.toLocaleString('pt-BR', { maximumFractionDigits: 3 })} kg`
-      : `x${Math.round(qty)}`;
-  }
-
-  // Distribui as linhas do cupom entre os itens planejados. Cada linha pertence
-  // a UM planejado: em vez de o primeiro da lista levar tudo que parece com ele,
-  // monta todos os pares possíveis e distribui do par mais forte para o mais
-  // fraco, respeitando a quantidade que foi planejada.
-  const MATCH_THRESHOLD = 0.6;
-
-  function assignBought(planned, bought, overrides){
-    const pool = bought.map((b, i) => ({ ...b, _idx: i, _tokens: tokenize(b.name) }));
-    const slots = planned.map(p => ({
-      item: p,
-      tokens: tokenize(p.name),
-      total: p.qty * p.price,
-      matches: [],
-      units: 0,
-    }));
-    const slotById = new Map(slots.map(s => [s.item.id, s]));
-
-    const takenBy = new Map();
-    const wantedBy = new Map(); // quem queria a linha mas já tinha atingido a qtd
-    const forced = new Set();
-
-    // O que o usuário ajustou à mão manda e sai da disputa automática, inclusive
-    // furando o limite de quantidade — se ele apontou para ali, é ali.
-    pool.forEach(b => {
-      if(!overrides || !Object.prototype.hasOwnProperty.call(overrides, b.id)) return;
-      const target = overrides[b.id];
-      if(target === null){        // marcado à mão como fora da lista
-        forced.add(b._idx);
-        b._manual = true;
-        return;
-      }
-      const slot = slotById.get(target);
-      if(!slot) return;           // planejado sumiu: deixa o automático decidir
-      b._manual = true;
-      slot.matches.push(b);
-      slot.units += unitsOf(b);
-      takenBy.set(b._idx, slot);
-    });
-
-    const pairs = [];
-    slots.forEach((slot, si) => {
-      pool.forEach(b => {
-        if(takenBy.has(b._idx) || forced.has(b._idx)) return;
-        const score = matchScore(slot.tokens, b._tokens);
-        if(score >= MATCH_THRESHOLD){
-          pairs.push({ si, b, score, priceGap: Math.abs(totalOf(b) - slot.total) });
-        }
-      });
-    });
-
-    // Nome manda; empatou no nome, leva quem tem o preço mais parecido. É esse
-    // desempate que separa três bandejas de bife anunciadas por peso diferente,
-    // e que faz o removedor com acetona preferir a linha "acetona" à "esmalte".
-    pairs.sort((x, y) => y.score - x.score || x.priceGap - y.priceGap);
-
-    pairs.forEach(pair => {
-      if(takenBy.has(pair.b._idx)) return;
-      const slot = slots[pair.si];
-      if(slot.units >= slot.item.qty){
-        if(!wantedBy.has(pair.b._idx)) wantedBy.set(pair.b._idx, slot);
-        return;
-      }
-      slot.matches.push(pair.b);
-      slot.units += unitsOf(pair.b);
-      takenBy.set(pair.b._idx, slot);
-    });
-
-    const leftovers = pool
-      .filter(b => !takenBy.has(b._idx))
-      .map(b => ({ ...b, _wantedBy: wantedBy.get(b._idx) || null }));
-
-    return { slots, leftovers };
-  }
-
-  function parseBRLNumber(str){
-    if(str == null) return NaN;
-    let s = String(str).trim();
-    if(s.includes(',')){
-      s = s.replace(/\./g, '').replace(',', '.');
+  function rawLineToStored(raw){
+    const entry = { id: uid(), name: raw.name };
+    if(raw.measure.kind === 'weight'){
+      entry.qty = raw.measure.kilos;
+      entry.price = raw.measure.pricePerKilo;
+      entry.isWeight = true;
+    } else {
+      entry.qty = raw.measure.count;
+      entry.price = raw.measure.unitPrice;
     }
-    return parseFloat(s);
-  }
-
-  // ---------- Import from nota text ----------
-  // Portais de NFC-e costumam listar cada item em blocos como:
-  //   NOME DO PRODUTO (Código: 12345 )
-  //   Qtde.:1  UN: UN1  Vl. Unit.:   19,99   Vl. Total
-  //   19,99
-  // ou seja: o rótulo "Vl. Total" vem numa linha e o valor sozinho na linha seguinte.
-  const CODE_STRIP_RE = /\s*\(c[oó]digo:?\s*\d+\s*\)\s*/i;
-  const QTY_RE = /qtde\.?:?\s*([\d.,]+)/i;
-  const UNIT_RE = /vl\.?\s*unit(?:[aá]rio)?\.?:?\s*([\d.,]+)/i;
-  const TOTAL_RE = /vl\.?\s*total:?\s*([\d.,]+)/i;
-  const TOTAL_LABEL_ONLY_RE = /vl\.?\s*total\s*$/i;
-  const BARE_NUMBER_RE = /^[\d.,]+$/;
-  const WEIGHT_RE = /un:\s*kg/i;
-  const LABEL_RE = /^(c[oó]digo|qtde|un\b|un:|un\.|vl\.|valor|desconto|item\s*\d|total\s*da\s*nota|consumidor|emitente|chave|protocolo)/i;
-
-  // Retorna um bloco por linha de item (não expandido em unidades) — quem chama decide
-  // como transformar cada bloco em entradas de `state.bought` (ver expandForBought).
-  function parseNotaText(text){
-    const lines = String(text || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-    const items = [];
-    let current = null;
-    let expectTotalNext = false;
-
-    function finalizeCurrent(){
-      if(current && current.name && (current.unit != null || current.total != null)){
-        items.push(current);
-      }
-      current = null;
-      expectTotalNext = false;
-    }
-
-    for(const line of lines){
-      if(expectTotalNext && BARE_NUMBER_RE.test(line)){
-        if(current) current.total = parseBRLNumber(line);
-        finalizeCurrent();
-        continue;
-      }
-      expectTotalNext = false;
-
-      const qtyM = line.match(QTY_RE);
-      const unitM = line.match(UNIT_RE);
-      const totalM = line.match(TOTAL_RE);
-
-      if(qtyM || unitM || totalM){
-        if(!current) current = { name: null, qty: null, unit: null, total: null, isWeight: false };
-        if(qtyM) current.qty = parseBRLNumber(qtyM[1]);
-        if(unitM) current.unit = parseBRLNumber(unitM[1]);
-        if(totalM) current.total = parseBRLNumber(totalM[1]);
-        if(WEIGHT_RE.test(line)) current.isWeight = true;
-        if(!totalM && TOTAL_LABEL_ONLY_RE.test(line)){
-          expectTotalNext = true;
-        } else {
-          finalizeCurrent();
-        }
-        continue;
-      }
-
-      if(LABEL_RE.test(line)) continue;
-
-      // linha de nome de produto
-      if(current && current.name) current = null;
-      const cleanName = line.replace(CODE_STRIP_RE, '').trim();
-      if(!cleanName) continue;
-      if(!current) current = { name: null, qty: null, unit: null, total: null, isWeight: false };
-      current.name = current.name ? current.name + ' ' + cleanName : cleanName;
-    }
-
-    return items;
-  }
-
-  // Um bloco vira uma única entrada de `state.bought` com a quantidade já embutida
-  // (ex: 12 hambúrgueres = 1 entrada com qty:12), guardando o preço por unidade —
-  // assim compara certo com o preço unitário do planejado, e o total é qty * price.
-  function blockToBoughtEntry(item){
-    const qty = item.qty || 1;
-    const price = item.unit != null ? item.unit : (item.total != null ? item.total / qty : 0);
-    const entry = { id: uid(), name: item.name, qty, price: Math.round(price * 100) / 100 };
-    // por peso o preço guardado é o do quilo, então a marca precisa sobreviver
-    // para o total e a contagem saírem certos depois
-    if(item.isWeight) entry.isWeight = true;
     return entry;
+  }
+
+  function measureLabel(measure){
+    return measure.kind === 'weight'
+      ? `${measure.kilos.toLocaleString('pt-BR', { maximumFractionDigits: 3 })} kg`
+      : `x${Math.round(measure.count)}`;
   }
 
   // ---------- Backup (exportar / importar entre aparelhos) ----------
@@ -439,12 +263,14 @@
     emptyBoughtEl.style.display = state.bought.length ? 'none' : 'block';
     let total = 0;
     state.bought.forEach((item, idx) => {
-      total += totalOf(item);
+      const measure = storedMeasure(item);
+      const lineTotal = measureTotal(measure);
+      total += lineTotal;
       const li = document.createElement('li');
       li.innerHTML = `
         <span class="name">${escapeHtml(item.name)}</span>
-        <span class="qty">${qtyLabel(item)}</span>
-        <span class="price">${fmtBRL(totalOf(item))}</span>
+        <span class="qty">${measureLabel(measure)}</span>
+        <span class="price">${fmtBRL(lineTotal)}</span>
         <button class="rm" data-idx="${idx}" title="remover">×</button>
       `;
       listBoughtEl.appendChild(li);
@@ -457,15 +283,13 @@
     previewListEl.innerHTML = '';
     importEmptyEl.style.display = previewItems.length ? 'none' : 'block';
     previewItems.forEach((item, idx) => {
-      const qty = item.qty || 1;
-      const total = item.total != null ? item.total : (item.unit || 0) * qty;
       const li = document.createElement('li');
       li.innerHTML = `
         <label>
           <input type="checkbox" data-idx="${idx}" ${item.checked ? 'checked' : ''}>
-          <span class="name">${escapeHtml(item.name)} <span class="qty">${qtyLabel(item)}</span></span>
+          <span class="name">${escapeHtml(item.name)} <span class="qty">${measureLabel(item.measure)}</span></span>
         </label>
-        <span class="price">${fmtBRL(total)}</span>
+        <span class="price">${fmtBRL(item.displayTotal)}</span>
       `;
       previewListEl.appendChild(li);
     });
@@ -492,18 +316,22 @@
   function renderCompare(){
     compareListEl.innerHTML = '';
 
-    const { slots, leftovers } = assignBought(state.planned, state.bought, state.overrides);
+    const { checks, unmatched } = assignReceipt(
+      state.planned.map(toPlannedItem),
+      state.bought.map(toReceiptLine),
+      state.overrides
+    );
 
     compareListEl.classList.toggle('adjusting', adjusting);
     btnClearAdjust.style.display = Object.keys(state.overrides).length ? '' : 'none';
 
     let totalPlanned = 0, totalBought = 0, mismatches = 0;
 
-    slots.forEach(slot => {
-      const p = slot.item;
-      const matches = slot.matches;
-      const plannedTotal = slot.total;
-      totalPlanned += plannedTotal;
+    checks.forEach(check => {
+      const p = check.planned;
+      const matches = check.matches;
+      const previstoTotal = plannedTotal(p);
+      totalPlanned += previstoTotal;
 
       const row = document.createElement('div');
       row.className = 'compare-row';
@@ -511,10 +339,10 @@
       let boughtColHtml, colClass = '';
 
       if(matches.length){
-        const matchedQty = slot.units;
-        const matchedTotal = matches.reduce((s, m) => s + totalOf(m), 0);
+        const matchedQty = check.matchedUnits;
+        const matchedTotal = matches.reduce((s, m) => s + measureTotal(m.line.measure), 0);
         totalBought += matchedTotal;
-        const diff = matchedTotal - plannedTotal;
+        const diff = matchedTotal - previstoTotal;
 
         let tagHtml;
         if(Math.abs(diff) < 0.005){
@@ -529,16 +357,16 @@
           tagHtml = `<span class="tag ok">${fmtBRL(Math.abs(diff))} a menos</span>`;
         }
 
-        const qtyNoteHtml = matchedQty !== p.qty
-          ? `<span class="tag missing">encontrado ${matchedQty}/${p.qty} un.</span>`
+        const qtyNoteHtml = matchedQty !== p.quantity
+          ? `<span class="tag missing">encontrado ${matchedQty}/${p.quantity} un.</span>`
           : '';
 
         const itemsHtml = matches.map(m => `
-          <div class="matched-item${m._manual ? ' manual' : ''}">
-            <span class="name">${escapeHtml(m.name)}</span>
-            <span class="qty">${qtyLabel(m)}</span>
-            <span class="price">${fmtBRL(totalOf(m))}</span>
-            ${reassignHtml(m, p.id)}
+          <div class="matched-item${m.manual ? ' manual' : ''}">
+            <span class="name">${escapeHtml(m.line.name)}</span>
+            <span class="qty">${measureLabel(m.line.measure)}</span>
+            <span class="price">${fmtBRL(measureTotal(m.line.measure))}</span>
+            ${reassignHtml(m.line, p.id)}
           </div>
         `).join('');
 
@@ -560,7 +388,7 @@
       row.innerHTML = `
         <div class="col-planned">
           <span class="name">${escapeHtml(p.name)}</span>
-          <span class="meta"><span>x${p.qty} · anunciado</span><span class="val">${fmtBRL(plannedTotal)}</span></span>
+          <span class="meta"><span>x${p.quantity} · anunciado</span><span class="val">${fmtBRL(previstoTotal)}</span></span>
         </div>
         <div class="col-bought ${colClass}">
           ${boughtColHtml}
@@ -569,19 +397,20 @@
       compareListEl.appendChild(row);
     });
 
-    // sobras: linhas do cupom que nenhum planejado levou
-    leftovers.forEach(b => {
-      totalBought += totalOf(b);
+    // linhas do cupom que nenhum Previsto levou
+    unmatched.forEach(u => {
+      const lineTotal = measureTotal(u.line.measure);
+      totalBought += lineTotal;
 
-      // se algum planejado queria a linha mas já tinha completado a quantidade,
-      // é excedente daquele item — bem diferente de uma compra fora da lista
-      const excedente = b._wantedBy;
-      const plannedColHtml = excedente
-        ? `<span class="name">${escapeHtml(excedente.item.name)}</span>
-           <span class="meta"><span>x${excedente.item.qty} já encontrados</span></span>`
+      // Excedente: alguém reconheceu a linha como sua, mas já tinha completado a
+      // quantidade prevista. Bem diferente de uma compra fora da lista.
+      const surplusOf = u.surplusOf;
+      const plannedColHtml = surplusOf
+        ? `<span class="name">${escapeHtml(surplusOf.name)}</span>
+           <span class="meta"><span>x${surplusOf.quantity} já encontrados</span></span>`
         : `<span class="name">—</span>
            <span class="meta"><span>não estava na lista</span></span>`;
-      const tagHtml = excedente
+      const tagHtml = surplusOf
         ? `<span class="tag bad">além do planejado</span>`
         : `<span class="tag missing">item extra</span>`;
 
@@ -591,11 +420,11 @@
         <div class="col-planned">
           ${plannedColHtml}
         </div>
-        <div class="col-bought diff-bad${b._manual ? ' manual' : ''}">
-          <span class="name">${escapeHtml(b.name)}</span>
-          <span class="meta"><span>${qtyLabel(b)} · pago</span><span class="val">${fmtBRL(totalOf(b))}</span></span>
+        <div class="col-bought diff-bad${u.manual ? ' manual' : ''}">
+          <span class="name">${escapeHtml(u.line.name)}</span>
+          <span class="meta"><span>${measureLabel(u.line.measure)} · pago</span><span class="val">${fmtBRL(lineTotal)}</span></span>
           ${tagHtml}
-          ${reassignHtml(b, null)}
+          ${reassignHtml(u.line, null)}
         </div>
       `;
       compareListEl.appendChild(row);
@@ -735,7 +564,7 @@
   });
 
   btnParseText.addEventListener('click', () => {
-    const parsed = parseNotaText(importTextEl.value);
+    const parsed = parseReceiptText(importTextEl.value);
     previewItems = parsed.map(p => ({ ...p, checked: true }));
     renderPreview();
   });
@@ -749,7 +578,7 @@
 
   btnConfirmImport.addEventListener('click', () => {
     previewItems.filter(i => i.checked).forEach(i => {
-      state.bought.push(blockToBoughtEntry(i));
+      state.bought.push(rawLineToStored(i));
     });
     save();
     renderBought();

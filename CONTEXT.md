@@ -3,43 +3,51 @@
 Confere se o preço anunciado na gôndola foi o preço cobrado no caixa. O uso é
 real e móvel: de pé no mercado, no celular, com uma mão.
 
+O código usa identificadores em inglês; cada termo abaixo traz o nome que ele
+tem no código. Os `_Avoid_` valem para a conversa em português — são as palavras
+que confundem, não sinônimos proibidos em inglês.
+
 ## Language
 
 ### As duas listas
 
-**Previsto**:
+**Previsto** (`PlannedItem`):
 O que você viu anunciado na etiqueta ou promoção: produto, quantidade e preço.
 Preço é sempre unitário.
 _Avoid_: planejado, item planejado, lista de compras
 
-**Linha do cupom**:
+**Linha do cupom** (`ReceiptLine`):
 Uma linha do cupom fiscal. Não é um produto: uma única linha pode valer 12
 unidades ou 0,435 kg.
 _Avoid_: item pago, item comprado, produto
 
-**Linha bruta**:
+**Linha bruta** (`RawLine`):
 O que saiu do texto colado do portal da nota, antes de você confirmar quais
 linhas entram. Vira Linha do cupom ao ser confirmada.
 _Avoid_: item importado, bloco, preview
 
 ### A comparação
 
-**Conferência**:
+**Conferência** (`Check`):
 Um Previsto junto das Linhas do cupom que couberam nele. É a unidade que a tela
 de comparação exibe.
-_Avoid_: slot, match, par
+_Avoid_: slot, par
 
-**Correspondência**:
+**Correspondência** (`Match`):
 O julgamento de que uma Linha do cupom pertence a um Previsto. Nasce da
 distribuição automática ou de um Ajuste.
-_Avoid_: match
 
-**Excedente**:
+**Excedente** (`surplusOf`):
 Linha do cupom que um Previsto reconheceu como sua, mas recusou por já ter
-atingido a quantidade prevista. Diferente de uma compra fora da lista.
-_Avoid_: sobra, leftover, item extra
+atingido a quantidade prevista.
+_Avoid_: sobra, item extra
 
-**Ajuste**:
+**Fora da lista** (`surplusOf: null`):
+Linha do cupom que nenhum Previsto reclamou. Uma compra que não estava na lista
+— diferente de um Excedente.
+_Avoid_: sobra, item extra
+
+**Ajuste** (`Adjustment`):
 Decisão manual sua sobre a qual Previsto uma Linha do cupom pertence — ou de que
 ela não pertence a nenhum. Vence sempre a distribuição automática, inclusive
 furando a quantidade prevista.
@@ -47,7 +55,7 @@ _Avoid_: override, correção, reatribuição
 
 ### Medida
 
-**Medida**:
+**Medida** (`Measure`):
 Como uma Linha do cupom é quantificada. Tem duas formas que não se misturam:
 **por unidade** (quantidade × preço unitário) e **por peso** (quilos × preço do
 quilo). Confundir as duas é o que faz três bandejas de bife virarem "1,25 un".
