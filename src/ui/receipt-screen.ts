@@ -1,3 +1,4 @@
+import './styles/receipt-import.css';
 import { total as measureTotal } from '../core/measure.js';
 import { parseReceiptText, type RawLine } from '../core/receipt.js';
 import { uid } from '../id.js';

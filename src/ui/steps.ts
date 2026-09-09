@@ -1,3 +1,4 @@
+import './styles/steps.css';
 import { byId, type Screen } from './dom.js';
 import type { Store } from '../store.js';
 import type { Step } from '../storage/schema.js';

@@ -1,0 +1,54 @@
+/* A lista de itens das telas 1 e 2, com seu total. */
+
+ul.list{
+  list-style:none;
+  margin: 0 0 22px;
+  padding:0;
+  border-top: 1px dashed var(--line);
+}
+ul.list li{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding: 10px 0;
+  border-bottom: 1px dashed var(--line);
+  font-size: 0.86rem;
+  animation: fadeUp 0.25s ease;
+}
+ul.list li .name{ flex:1; min-width:0; overflow-wrap:anywhere; }
+ul.list li .qty{ color: var(--ink-soft); width:34px; text-align:right; }
+ul.list li .price{ width:80px; text-align:right; font-weight:700; }
+ul.list li .rm{
+  background:none;
+  color: var(--ink-soft);
+  font-size:1rem;
+  line-height:1;
+  padding:2px 4px;
+  opacity:0.5;
+}
+ul.list li .rm:hover{ opacity:1; color: var(--bad); }
+
+.empty{
+  text-align:center;
+  padding: 26px 0;
+  color: var(--ink-soft);
+  font-size:0.8rem;
+  font-style: italic;
+  border-top: 1px dashed var(--line);
+  margin-bottom:22px;
+}
+
+.total-row{
+  display:flex;
+  justify-content:space-between;
+  font-size:0.85rem;
+  padding: 4px 0 20px;
+  text-transform:uppercase;
+  letter-spacing:0.05em;
+}
+.total-row .amt{ font-weight:700; font-size:1rem; }
+
+@media (max-width: 600px){
+  ul.list li{ gap: 8px; padding: 12px 0; }
+  ul.list li .rm{ padding: 6px 4px; font-size: 1.15rem; opacity: 0.7; }
+}

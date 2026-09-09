@@ -1,3 +1,4 @@
+import './styles/backup.css';
 import { backupFileName, buildBackup, parseBackup } from '../storage/backup.js';
 import type { StoredState } from '../storage/schema.js';
 import type { Store } from '../store.js';

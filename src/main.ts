@@ -1,4 +1,7 @@
-import './style.css';
+// O que vale para o app inteiro. Cada tela traz o seu próprio estilo junto.
+import './ui/styles/base.css';
+import './ui/styles/controls.css';
+import './ui/styles/list.css';
 
 import { loadState } from './storage/local.js';
 import { createStore } from './store.js';

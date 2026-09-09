@@ -7,6 +7,20 @@ No ar em **https://danilobertolini.github.io/mercado-compras/**
 O vocabulário do domínio está em [CONTEXT.md](./CONTEXT.md) — vale ler antes de
 mexer no código, porque os nomes ali são os nomes usados nos tipos e funções.
 
+## Onde fica o quê
+
+```
+src/
+├── core/      regras de negócio, sem DOM nem localStorage — é o que os testes cobrem
+├── storage/   o estado salvo, a migração de formatos antigos e o backup
+├── ui/        as três telas, o painel de backup e o CSS de cada área
+└── main.ts    monta as peças e liga o store à tela
+```
+
+A separação existe para uma coisa concreta: distribuir as linhas do cupom entre
+os itens previstos é a parte difícil do app, e ela precisa ser testável sem
+navegador. Tudo em `core/` recebe dados e devolve dados.
+
 ## Rodar
 
 ```bash

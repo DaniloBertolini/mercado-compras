@@ -1,3 +1,4 @@
+import './styles/compare.css';
 import { assignReceipt, type Check, type Unmatched } from '../core/assign.js';
 import { total as measureTotal } from '../core/measure.js';
 import { plannedTotal, type ReceiptLine } from '../core/types.js';

@@ -1,0 +1,38 @@
+/* Indicador de passos e a troca de tela. */
+
+/* step indicator */
+.steps{
+  display:flex;
+  justify-content:center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 26px;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.steps .step{
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+}
+.steps .step.active{
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+.steps .sep{ align-self:center; opacity:0.5; }
+
+.screen{ display:none; animation: fadeUp 0.35s ease; }
+.screen.active{ display:block; }
+
+@keyframes fadeUp{
+  from{ opacity:0; transform: translateY(8px); }
+  to{ opacity:1; transform: translateY(0); }
+}
+
+@media (max-width: 600px){
+  .steps{ font-size: 0.6rem; margin-bottom: 20px; }
+  .steps .step{ padding: 4px 8px; }
+}
