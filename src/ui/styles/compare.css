@@ -127,12 +127,13 @@ select.reassign:focus{ border-color: var(--accent); }
 .summary-row.highlight .amt.ok{ color: var(--ok); }
 
 /* cabecalho de cada grupo: o que exige acao vem primeiro e se anuncia */
+.group + .group{ margin-top: 22px; }
+
 .group-head{
   display:flex;
-  justify-content:space-between;
   align-items:baseline;
   gap:10px;
-  margin: 22px 0 0;
+  margin: 0;
   padding: 0 0 5px;
   font-family:'Space Mono', monospace;
   font-size:0.64rem;
@@ -140,8 +141,20 @@ select.reassign:focus{ border-color: var(--accent); }
   letter-spacing:0.12em;
   color: var(--ink-soft);
   border-bottom: 1px solid var(--line);
+  cursor: pointer;
+  user-select: none;
+  /* some com o triangulo padrao do <summary>, trocado pela seta abaixo */
+  list-style: none;
 }
-.group-head:first-child{ margin-top: 0; }
+.group-head::-webkit-details-marker{ display:none; }
+
+/* a seta diz o estado: fechada aponta para o lado, aberta para baixo */
+.group-head .arrow::before{ content: "\25B8"; }
+.group[open] > .group-head .arrow::before{ content: "\25BE"; }
+
+/* o nome empurra a contagem para a direita */
+.group-head .group-name{ flex:1; }
+
 .group-head .count{
   font-weight:700;
   background: var(--paper-dark);
@@ -176,5 +189,6 @@ select.reassign:focus{ border-color: var(--accent); }
 }
 
 @media (max-width: 600px){
-  .group-head{ font-size: 0.6rem; letter-spacing: 0.08em; margin-top: 18px; }
+  .group + .group{ margin-top: 18px; }
+  .group-head{ font-size: 0.6rem; letter-spacing: 0.08em; padding: 6px 0; }
 }

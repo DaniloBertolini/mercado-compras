@@ -39,6 +39,13 @@ export function mountCompareScreen(store: Store): Screen {
   // não vai para o localStorage.
   let adjusting = false;
 
+  /**
+   * Grupos que você recolheu. Vive só enquanto a tela está aberta, mas precisa
+   * existir: a lista é redesenhada inteira a cada ajuste, e sem isso o grupo
+   * que você acabou de fechar reabriria sozinho.
+   */
+  const collapsed = new Set<Severity>();
+
   btnBack.addEventListener('click', () => {
     store.update((state) => {
       state.step = 2;
@@ -223,18 +230,39 @@ export function mountCompareScreen(store: Store): Screen {
     return row.kind === 'check' ? checkRowHtml(row) : unmatchedRowHtml(row);
   }
 
-  function appendGroupHead(severity: Severity, count: number): void {
-    const head = document.createElement('div');
-    head.className = `group-head ${severity}`;
-    head.innerHTML = `<span>${GROUP_TITLE[severity]}</span><span class="count">${count}</span>`;
-    listEl.appendChild(head);
-  }
+  /**
+   * Cada grupo é um `<details>`: tocar no título recolhe a lista. Usar o
+   * elemento nativo em vez de um botão com classe dá teclado e leitor de tela
+   * de graça, e o título continua visível fechado — com a contagem, que é o que
+   * você quer ver de relance.
+   */
+  function appendGroup(severity: Severity, rowsHtml: readonly string[]): void {
+    const group = document.createElement('details');
+    group.className = 'group';
+    group.open = !collapsed.has(severity);
 
-  function appendRow(html: string): void {
-    const row = document.createElement('div');
-    row.className = 'compare-row';
-    row.innerHTML = html;
-    listEl.appendChild(row);
+    group.addEventListener('toggle', () => {
+      if (group.open) collapsed.delete(severity);
+      else collapsed.add(severity);
+    });
+
+    const head = document.createElement('summary');
+    head.className = `group-head ${severity}`;
+    head.innerHTML = `
+      <span class="arrow" aria-hidden="true"></span>
+      <span class="group-name">${GROUP_TITLE[severity]}</span>
+      <span class="count">${rowsHtml.length}</span>
+    `;
+    group.appendChild(head);
+
+    for (const html of rowsHtml) {
+      const row = document.createElement('div');
+      row.className = 'compare-row';
+      row.innerHTML = html;
+      group.appendChild(row);
+    }
+
+    listEl.appendChild(group);
   }
 
   function render(): void {
@@ -248,8 +276,7 @@ export function mountCompareScreen(store: Store): Screen {
     btnClearAdjust.style.display = Object.keys(state.adjustments).length ? '' : 'none';
 
     for (const group of groups) {
-      appendGroupHead(group.severity, group.rows.length);
-      for (const row of group.rows) appendRow(rowHtml(row));
+      appendGroup(group.severity, group.rows.map(rowHtml));
     }
 
     const diff = paid - announced;
