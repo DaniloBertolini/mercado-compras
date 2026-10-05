@@ -1,0 +1,242 @@
+/* Tela 3: anunciado contra cobrado, e a barra de ajuste manual. */
+
+/* comparison screen */
+.compare-wrap{
+  border-top: 1px dashed var(--line);
+  margin-bottom: 10px;
+}
+.compare-row{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  padding: 12px 0;
+  border-bottom: 1px dashed var(--line);
+  position:relative;
+  animation: fadeUp 0.3s ease;
+}
+.compare-row::after{
+  content:"";
+  position:absolute;
+  left:50%; top:0; bottom:0;
+  width:1px;
+  background: var(--line);
+}
+.col-planned, .col-bought{ font-size:0.82rem; }
+.col-planned .name, .col-bought .name{ display:block; margin-bottom:3px; }
+.col-planned .meta, .col-bought .meta{
+  display:flex; justify-content:space-between;
+  color: var(--ink-soft); font-size:0.78rem;
+}
+.col-bought.diff-bad{ color: var(--bad); }
+.col-bought.diff-bad .name, .col-bought.diff-bad .meta .val{ color: var(--bad); font-weight:700; }
+.col-bought.diff-ok .meta .val{ color: var(--ok); font-weight:700; }
+
+/* barra de ajuste manual */
+.adjust-bar{
+  display:flex;
+  justify-content:flex-end;
+  gap:8px;
+  margin-bottom:8px;
+}
+.btn-adjust{
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--ink-soft);
+  font-size:0.66rem;
+  text-transform:uppercase;
+  letter-spacing:0.06em;
+  padding: 6px 10px;
+  border-radius:2px;
+}
+.btn-adjust:hover{ border-color: var(--ink); color: var(--ink); }
+.btn-adjust.on{
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--paper);
+}
+
+/* o seletor de destino só existe no modo ajuste — fora dele o recibo fica limpo */
+select.reassign{
+  display:none;
+  flex: 1 1 100%;
+  margin-top:6px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius:2px;
+  padding: 6px 4px;
+  font-family: inherit;
+  font-size: 0.72rem;
+  color: var(--ink);
+  outline:none;
+}
+select.reassign:focus{ border-color: var(--accent); }
+.compare-wrap.adjusting select.reassign{ display:block; }
+
+/* marca discreta de linha que você mesmo apontou */
+.matched-item.manual .name::before,
+.col-bought.manual > .name::before{
+  content:"⇄ ";
+  color: var(--accent);
+}
+
+.matched-item{
+  display:flex;
+  align-items:center;
+  flex-wrap: wrap;
+  gap:6px;
+  font-size:0.78rem;
+  color: var(--ink-soft);
+  margin-bottom:3px;
+}
+.matched-item .name{ flex:1; display:inline; margin-bottom:0; color:inherit; }
+.matched-item .qty{ text-align:right; }
+.matched-item .price{ text-align:right; font-weight:600; color: var(--ink); }
+.col-bought.diff-bad .matched-item .name{ color: var(--bad); font-weight:400; }
+.tag{
+  display:inline-block;
+  font-size:0.6rem;
+  text-transform:uppercase;
+  letter-spacing:0.06em;
+  padding: 1px 6px;
+  border-radius: 2px;
+  margin-top:4px;
+}
+.tag.bad{ background: var(--bad-bg); color: var(--bad); }
+.tag.ok{ background: var(--ok-bg); color: var(--ok); }
+.tag.missing{ background: var(--paper-dark); color: var(--ink-soft); }
+
+.summary{
+  margin: 22px 0;
+  padding: 16px;
+  background: var(--paper-dark);
+  border-radius: 3px;
+  font-size: 0.82rem;
+}
+.summary-row{
+  display:flex;
+  justify-content:space-between;
+  padding: 5px 0;
+}
+.summary-row.highlight{
+  font-weight:700;
+  border-top: 1px dashed var(--line);
+  margin-top:4px;
+  padding-top:10px;
+}
+.summary-row.highlight .amt.bad{ color: var(--bad); }
+.summary-row.highlight .amt.ok{ color: var(--ok); }
+
+/* cabecalho de cada grupo: o que exige acao vem primeiro e se anuncia */
+.group + .group{ margin-top: 22px; }
+
+.group-head{
+  display:flex;
+  align-items:baseline;
+  gap:10px;
+  margin: 0;
+  padding: 0 0 5px;
+  font-family:'Space Mono', monospace;
+  font-size:0.64rem;
+  text-transform:uppercase;
+  letter-spacing:0.12em;
+  color: var(--ink-soft);
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+  user-select: none;
+  /* some com o triangulo padrao do <summary>, trocado pela seta abaixo */
+  list-style: none;
+}
+.group-head::-webkit-details-marker{ display:none; }
+
+/* a seta diz o estado: fechada aponta para o lado, aberta para baixo */
+.group-head .arrow::before{ content: "\25B8"; }
+.group[open] > .group-head .arrow::before{ content: "\25BE"; }
+
+/* o nome empurra a contagem para a direita */
+.group-head .group-name{ flex:1; }
+
+.group-head .count{
+  font-weight:700;
+  background: var(--paper-dark);
+  border-radius: 2px;
+  padding: 1px 7px;
+}
+.group-head.overpaid{ color: var(--bad); border-bottom-color: var(--bad); }
+.group-head.overpaid .count{ background: var(--bad-bg); color: var(--bad); }
+.group-head.settled{ color: var(--ok); border-bottom-color: var(--ok); }
+.group-head.settled .count{ background: var(--ok-bg); color: var(--ok); }
+
+/* a primeira linha de cada grupo nao repete a borda do cabecalho */
+.group-head + .compare-row{ padding-top: 10px; }
+
+/* saldo do desconto do cupom, logo acima dos itens que podem usa-lo */
+.discount-bar{
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  background: var(--paper-dark);
+  border-radius: 2px;
+  font-size: 0.76rem;
+  color: var(--ink-soft);
+}
+.discount-bar strong{ color: var(--ink); }
+
+/* desconto entre as linhas e o total, como no cupom de papel */
+.col-bought .meta.discount-line{ color: var(--ok); }
+.undo-discount{
+  background: none;
+  padding: 0 0 0 6px;
+  font-size: 0.68rem;
+  color: var(--ink-soft);
+  text-decoration: underline;
+}
+
+.discount-form{
+  display:flex;
+  gap:6px;
+  margin-top:8px;
+}
+.discount-form input{ width: 80px; flex: none; }
+.discount-form button{
+  flex:1;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font-size:0.66rem;
+  text-transform:uppercase;
+  letter-spacing:0.06em;
+  padding: 6px 8px;
+  border-radius:2px;
+}
+.discount-form button:hover{ border-color: var(--ink); }
+
+/* linha informativa do resumo: existe para explicar, nao para somar */
+.summary-row.faint{ color: var(--ink-soft); font-size:0.76rem; }
+
+/* grupo sem preco: nem erro nem acerto, entao sem cor de veredito */
+.group-head.unpriced{ color: var(--ink-soft); }
+
+@media (max-width: 600px){
+  /* comparativo empilhado: a barra colorida liga o pago ao anunciado */
+  .compare-row{ grid-template-columns: 1fr; gap: 8px; }
+  .compare-row::after{ display: none; }
+  .col-bought{
+    border-left: 2px solid var(--line);
+    padding-left: 10px;
+  }
+  .col-bought.diff-bad{ border-left-color: var(--bad); }
+  .col-bought.diff-ok{ border-left-color: var(--ok); }
+
+  .summary{ padding: 14px; }
+
+  /* alvo de dedo maior; 16px no select evita o zoom automatico ao abrir */
+  .adjust-bar{ justify-content: stretch; }
+  .btn-adjust{ flex:1; padding: 10px 6px; font-size: 0.64rem; }
+  select.reassign{ font-size: 16px; padding: 10px 6px; }
+  .discount-form input{ font-size: 16px; }
+  .discount-form button{ padding: 10px 6px; }
+}
+
+@media (max-width: 600px){
+  .group + .group{ margin-top: 18px; }
+  .group-head{ font-size: 0.6rem; letter-spacing: 0.08em; padding: 6px 0; }
+}

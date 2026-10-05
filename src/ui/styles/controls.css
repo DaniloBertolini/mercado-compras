@@ -1,0 +1,125 @@
+/* Campos e botoes, usados pelas tres telas. */
+
+form.entry{
+  display:grid;
+  grid-template-columns: 1fr 64px 90px 40px;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+form.entry.two-col{
+  grid-template-columns: 1fr 90px 40px;
+}
+/* sem isto os inputs impoem sua largura intrinseca e estouram a grade */
+form.entry > div{ min-width: 0; }
+
+label.field-label{
+  font-size:0.62rem;
+  text-transform:uppercase;
+  letter-spacing:0.08em;
+  color: var(--ink-soft);
+  display:block;
+  margin-bottom:4px;
+}
+
+input{
+  width:100%;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  padding: 6px 2px;
+  font-family: inherit;
+  font-size: 0.88rem;
+  color: var(--ink);
+  outline:none;
+  transition: border-color 0.2s;
+}
+input::placeholder{ color: #b5ac9a; }
+input:focus{ border-bottom-color: var(--accent); }
+input[type="number"]{ text-align:right; }
+
+button{
+  font-family: inherit;
+  cursor:pointer;
+  border: none;
+}
+
+.btn-add{
+  align-self:end;
+  height:32px;
+  background: var(--ink);
+  color: var(--paper);
+  font-weight:700;
+  font-size:1rem;
+  border-radius:2px;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+.btn-add:hover{ background: var(--accent); }
+.btn-add:active{ transform: scale(0.92); }
+
+.actions{
+  display:flex;
+  gap:10px;
+}
+.btn-primary, .btn-secondary{
+  flex:1;
+  padding: 13px 10px;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  border-radius:2px;
+  transition: transform 0.15s ease, background 0.15s ease, color 0.15s;
+}
+.btn-primary{
+  background: var(--accent);
+  color: var(--paper);
+  font-weight:700;
+}
+.btn-primary:hover{ background: var(--ink); }
+.btn-primary:active{ transform: scale(0.97); }
+.btn-primary:disabled{
+  background: var(--line);
+  color: var(--ink-soft);
+  cursor:not-allowed;
+}
+.btn-secondary{
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--ink-soft);
+}
+.btn-secondary:hover{ border-color: var(--ink); color: var(--ink); }
+
+textarea.paste-box{
+  width:100%;
+  min-height: 90px;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius:2px;
+  padding: 8px;
+  font-family: inherit;
+  font-size: 0.8rem;
+  color: var(--ink);
+  outline:none;
+  resize: vertical;
+  margin-bottom:10px;
+}
+textarea.paste-box:focus{ border-color: var(--accent); }
+textarea.paste-box::placeholder{ color: #b5ac9a; }
+
+@media (max-width: 600px){
+  /* nome ocupa a linha toda; qtd, preco e + dividem a de baixo */
+  form.entry{
+    grid-template-columns: 1fr 1fr 46px;
+    gap: 12px 8px;
+  }
+  form.entry.two-col{ grid-template-columns: 1fr 46px; }
+  form.entry > div:first-child{ grid-column: 1 / -1; }
+
+  /* 16px evita o zoom automatico ao focar o campo */
+  input, textarea.paste-box{ font-size: 16px; }
+  input{ padding: 8px 2px; }
+
+  .btn-add{ height: 40px; font-size: 1.1rem; }
+
+  .actions{ flex-wrap: wrap; }
+  .btn-primary, .btn-secondary{ padding: 14px 8px; font-size: 0.72rem; letter-spacing: 0.06em; }
+}

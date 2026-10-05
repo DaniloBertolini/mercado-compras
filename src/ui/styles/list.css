@@ -1,0 +1,109 @@
+/* A lista de itens das telas 1 e 2, com seu total. */
+
+ul.list{
+  list-style:none;
+  margin: 0 0 22px;
+  padding:0;
+  border-top: 1px dashed var(--line);
+}
+ul.list li{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding: 10px 0;
+  border-bottom: 1px dashed var(--line);
+  font-size: 0.86rem;
+  animation: fadeUp 0.25s ease;
+}
+ul.list li .name{ flex:1; min-width:0; overflow-wrap:anywhere; }
+ul.list li .qty{ color: var(--ink-soft); width:34px; text-align:right; }
+ul.list li .price{ width:80px; text-align:right; font-weight:700; }
+ul.list li .rm{
+  background:none;
+  color: var(--ink-soft);
+  font-size:1rem;
+  line-height:1;
+  padding:2px 4px;
+  opacity:0.5;
+}
+ul.list li .rm:hover{ opacity:1; color: var(--bad); }
+
+.empty{
+  text-align:center;
+  padding: 26px 0;
+  color: var(--ink-soft);
+  font-size:0.8rem;
+  font-style: italic;
+  border-top: 1px dashed var(--line);
+  margin-bottom:22px;
+}
+
+.total-row{
+  display:flex;
+  justify-content:space-between;
+  font-size:0.85rem;
+  padding: 4px 0 20px;
+  text-transform:uppercase;
+  letter-spacing:0.05em;
+}
+.total-row .amt{ font-weight:700; font-size:1rem; }
+
+/* desconto fica colado no total que ele abate, mais apagado que ele */
+.total-row.discount-row{
+  align-items:baseline;
+  padding-bottom: 6px;
+  color: var(--ink-soft);
+}
+.total-row.discount-row input{ width: 90px; }
+
+/* botao de editar, ao lado do de remover */
+ul.list li .edit{
+  background:none;
+  color: var(--ink-soft);
+  font-size:0.95rem;
+  line-height:1;
+  padding:2px 4px;
+  opacity:0.5;
+}
+ul.list li .edit:hover{ opacity:1; color: var(--accent); }
+
+/* item aberto para edicao: vira o mesmo formulario do topo, no lugar */
+ul.list li.editing{ display:block; padding: 14px 0; }
+ul.list li.editing form.entry{ margin-bottom: 10px; }
+.cancel-edit{
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--ink-soft);
+  font-size:0.66rem;
+  text-transform:uppercase;
+  letter-spacing:0.06em;
+  padding: 6px 12px;
+  border-radius:2px;
+}
+.cancel-edit:hover{ border-color: var(--ink); color: var(--ink); }
+
+/* marcacao de item cujo preco so existe no caixa */
+.at-checkout{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin: -8px 0 18px;
+  font-size:0.72rem;
+  color: var(--ink-soft);
+  cursor:pointer;
+  user-select:none;
+}
+ul.list li.editing .at-checkout{ margin: 0 0 10px; }
+ul.list li .price.at-checkout-tag{
+  font-weight:400;
+  font-style:italic;
+  font-size:0.74rem;
+  color: var(--ink-soft);
+}
+
+@media (max-width: 600px){
+  ul.list li{ gap: 8px; padding: 12px 0; }
+  ul.list li .rm{ padding: 6px 4px; font-size: 1.15rem; opacity: 0.7; }
+  ul.list li .edit{ padding: 6px 4px; font-size: 1.05rem; opacity: 0.7; }
+  .cancel-edit{ width:100%; padding: 10px; }
+}

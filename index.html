@@ -7,7 +7,6 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css">
 </head>
 <body>
 
@@ -48,6 +47,11 @@
         <button type="submit" class="btn-add" title="adicionar">+</button>
       </form>
 
+      <label class="at-checkout">
+        <input type="checkbox" id="p-at-checkout">
+        só sei o preço no caixa (peso, hortifruti)
+      </label>
+
       <ul class="list" id="list-planned"></ul>
       <div class="empty" id="empty-planned">lista vazia — adicione o primeiro item</div>
 
@@ -66,15 +70,25 @@
       <h2 class="title">O que você pagou no caixa</h2>
       <p class="hint">Agora digite o nome e o valor exatamente como saiu no cupom fiscal.</p>
 
-      <details class="import-wrap">
+      <details class="import-wrap" id="import-wrap">
         <summary>importar da nota (QR code)</summary>
+
+        <button type="button" class="btn-scan" id="btn-scan-qr" hidden>▣ mirar no QR code da nota</button>
+        <p class="scan-unavailable" id="scan-unavailable" hidden>
+          Este navegador não lê QR code. No celular, use o app da câmera e cole o link abaixo.
+        </p>
+
+        <div class="scanner" id="scanner" hidden>
+          <video id="scanner-video" playsinline muted></video>
+          <button type="button" class="btn-open" id="btn-stop-scan">cancelar leitura</button>
+        </div>
 
         <div class="import-link-row">
           <input type="text" id="import-link" placeholder="cole aqui o link do QR code" autocomplete="off">
           <button type="button" class="btn-open" id="btn-open-link">abrir ↗</button>
         </div>
 
-        <textarea class="import-text" id="import-text" placeholder="depois de abrir o link e resolver o captcha você mesmo, selecione e copie a lista de itens da página, e cole aqui"></textarea>
+        <textarea class="paste-box" id="import-text" placeholder="depois de abrir o link e resolver o captcha você mesmo, selecione e copie a lista de itens da página, e cole aqui"></textarea>
         <button type="button" class="btn-parse" id="btn-parse-text">processar texto</button>
 
         <div class="import-empty" id="import-empty">nenhum item processado ainda</div>
@@ -98,6 +112,11 @@
       <ul class="list" id="list-bought"></ul>
       <div class="empty" id="empty-bought">lista vazia — adicione o primeiro item</div>
 
+      <div class="total-row discount-row">
+        <label for="b-discount">desconto do cupom</label>
+        <input type="number" id="b-discount" placeholder="0,00" min="0" step="0.01" inputmode="decimal">
+      </div>
+
       <div class="total-row">
         <span>total pago</span>
         <span class="amt" id="total-bought">R$ 0,00</span>
@@ -119,6 +138,8 @@
         <button type="button" class="btn-adjust" id="btn-clear-adjust">limpar ajustes</button>
       </div>
 
+      <p class="discount-bar" id="discount-bar" hidden></p>
+
       <div class="compare-wrap" id="compare-list"></div>
 
       <div class="summary" id="summary"></div>
@@ -135,22 +156,29 @@
     <!-- BACKUP: levar a lista de um aparelho para outro -->
     <details class="backup-wrap">
       <summary>backup — levar do celular pro pc</summary>
-      <p class="hint">Os dados ficam só neste aparelho. Para ver no outro, exporte aqui e importe lá — o código é texto puro, dá para mandar por WhatsApp para você mesmo.</p>
+      <p class="hint">A lista fica guardada só neste aparelho. Para vê-la no outro, mande o código daqui e traga lá.</p>
 
-      <div class="backup-row">
-        <button type="button" class="btn-open" id="btn-copy-backup">copiar código</button>
-        <button type="button" class="btn-open" id="btn-download-backup">baixar arquivo</button>
-      </div>
+      <section class="backup-half">
+        <h3 class="backup-title">mandar esta lista daqui</h3>
+        <div class="backup-row">
+          <button type="button" class="btn-open" id="btn-copy-backup">copiar código</button>
+          <button type="button" class="btn-open" id="btn-download-backup">baixar arquivo</button>
+        </div>
+        <textarea class="paste-box" id="backup-out" readonly placeholder="o código aparece aqui quando você tocar em copiar"></textarea>
+        <p class="backup-note">Cole numa mensagem para você mesmo e abra no outro aparelho.</p>
+      </section>
 
-      <textarea class="import-text" id="backup-text" placeholder="o código exportado aparece aqui — ou cole aqui o código vindo do outro aparelho"></textarea>
-
-      <div class="backup-row">
-        <button type="button" class="btn-parse" id="btn-import-text">importar código colado</button>
-        <label class="btn-open file-label">
-          abrir arquivo
-          <input type="file" id="backup-file" accept=".json,application/json,text/plain" hidden>
-        </label>
-      </div>
+      <section class="backup-half">
+        <h3 class="backup-title">trazer de outro aparelho</h3>
+        <textarea class="paste-box" id="backup-in" placeholder="cole aqui o código que você copiou no outro aparelho"></textarea>
+        <div class="backup-row">
+          <button type="button" class="btn-parse" id="btn-import-text">importar código colado</button>
+          <label class="btn-open file-label">
+            abrir arquivo
+            <input type="file" id="backup-file" accept=".json,application/json,text/plain" hidden>
+          </label>
+        </div>
+      </section>
 
       <div class="backup-status" id="backup-status" role="status"></div>
     </details>
@@ -158,7 +186,7 @@
   </div>
 </div>
 
-<script src="script.js"></script>
+<script type="module" src="/src/main.ts"></script>
 
 </body>
 </html>

@@ -1,0 +1,142 @@
+/* Papel, tipografia e a moldura de cupom: o que vale para o app inteiro. */
+
+:root{
+  --paper: #f4f1e8;
+  --paper-dark: #e8e3d3;
+  --ink: #2b2620;
+  --ink-soft: #6b6255;
+  --line: #c9c1ac;
+  --ok: #3f6b4a;
+  --ok-bg: #e3ead9;
+  --bad: #a33d2f;
+  --bad-bg: #f5e0d8;
+  --accent: #b8552f;
+  --shadow: rgba(43,38,32,0.18);
+}
+
+* { box-sizing: border-box; }
+
+html{
+  -webkit-text-size-adjust: 100%;
+}
+
+body{
+  margin:0;
+  min-height:100vh;
+  background:
+    radial-gradient(circle at 20% 10%, rgba(184,85,47,0.05), transparent 40%),
+    radial-gradient(circle at 80% 90%, rgba(63,107,74,0.05), transparent 40%),
+    var(--paper);
+  color: var(--ink);
+  font-family: 'Courier Prime', 'Space Mono', monospace;
+  display:flex;
+  justify-content:center;
+  padding: 40px 16px 80px;
+}
+
+/* subtle paper grain */
+body::before{
+  content:"";
+  position:fixed;
+  inset:0;
+  pointer-events:none;
+  opacity:0.5;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+}
+
+.receipt{
+  width:100%;
+  max-width: 560px;
+  min-width: 0;
+  background: var(--paper);
+  position:relative;
+  box-shadow: 0 30px 60px -25px var(--shadow);
+}
+
+/* torn edge top/bottom */
+.receipt::before, .receipt::after{
+  content:"";
+  display:block;
+  height:14px;
+  background:
+    linear-gradient(135deg, var(--paper) 25%, transparent 25%) 0 0,
+    linear-gradient(225deg, var(--paper) 25%, transparent 25%) 0 0;
+  background-size: 16px 16px;
+  background-color: transparent;
+}
+.receipt::before{ transform: translateY(1px); }
+.receipt::after{ transform: translateY(-1px) rotate(180deg); }
+
+.receipt-inner{
+  padding: 8px 30px 34px;
+}
+
+header.brand{
+  text-align:center;
+  padding: 12px 0 22px;
+  border-bottom: 1px dashed var(--line);
+  margin-bottom: 24px;
+}
+header.brand .mark{
+  font-family:'Space Mono', monospace;
+  font-weight:700;
+  font-size: 1.5rem;
+  letter-spacing: 0.14em;
+  display:inline-flex;
+  align-items:center;
+  gap:10px;
+}
+header.brand .mark::before, header.brand .mark::after{
+  content:"✦";
+  color: var(--accent);
+  font-size:0.7rem;
+}
+header.brand .sub{
+  margin-top:6px;
+  font-size:0.72rem;
+  letter-spacing:0.18em;
+  text-transform:uppercase;
+  color: var(--ink-soft);
+}
+
+h2.title{
+  font-family:'Space Mono', monospace;
+  font-size: 0.95rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin: 0 0 4px;
+}
+p.hint{
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  margin: 0 0 20px;
+  line-height:1.5;
+}
+
+.barcode{
+  margin: 26px auto 4px;
+  height: 36px;
+  width: 70%;
+  background: repeating-linear-gradient(90deg, var(--ink) 0 2px, transparent 2px 5px, var(--ink) 5px 6px, transparent 6px 9px, var(--ink) 9px 12px, transparent 12px 14px);
+  opacity:0.85;
+}
+.footer-note{
+  text-align:center;
+  font-size: 0.65rem;
+  letter-spacing:0.1em;
+  text-transform:uppercase;
+  color: var(--ink-soft);
+  margin-top:8px;
+}
+
+::-webkit-scrollbar{ width:8px; }
+::-webkit-scrollbar-thumb{ background: var(--line); border-radius:4px; }
+
+@media (max-width: 600px){
+  body{ padding: 16px 8px 56px; }
+  .receipt-inner{ padding: 8px 16px 28px; }
+
+  header.brand{ padding: 10px 0 18px; margin-bottom: 18px; }
+  header.brand .mark{ font-size: 1.15rem; letter-spacing: 0.08em; gap:8px; }
+  header.brand .sub{ font-size: 0.62rem; letter-spacing: 0.1em; }
+}
