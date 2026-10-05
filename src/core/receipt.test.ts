@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseBRLNumber, parseReceiptText } from './receipt.js';
+import { parseBRLNumber, parseReceiptDiscount, parseReceiptText } from './receipt.js';
 import { total } from './measure.js';
 
 describe('parseBRLNumber', () => {
@@ -79,5 +79,48 @@ describe('parseReceiptText', () => {
   it('não quebra com texto vazio', () => {
     expect(parseReceiptText('')).toEqual([]);
     expect(parseReceiptText('   \n  \n ')).toEqual([]);
+  });
+});
+
+describe('parseReceiptDiscount', () => {
+  it('lê o desconto quando o valor vem na linha seguinte', () => {
+    // é assim que o portal sai ao copiar o rodapé da nota
+    const text = `
+      ARROZ KIKA PARBO PC 5kg (Código: 2635 )
+      Qtde.:1  UN: UN1  Vl. Unit.:   12,79   Vl. Total
+      12,79
+      Qtd. total de itens:
+      108
+      Valor total R$:
+      738,68
+      Descontos R$:
+      14,30
+      Valor a pagar R$:
+      724,38
+    `;
+
+    expect(parseReceiptDiscount(text)).toBeCloseTo(14.3, 2);
+  });
+
+  it('lê o desconto na mesma linha do rótulo', () => {
+    expect(parseReceiptDiscount('Descontos R$:\t14,30')).toBeCloseTo(14.3, 2);
+    expect(parseReceiptDiscount('Desconto R$ 1.014,30')).toBeCloseTo(1014.3, 2);
+  });
+
+  it('devolve null quando a nota não traz a linha', () => {
+    expect(parseReceiptDiscount('Valor a pagar R$:\n724,38')).toBeNull();
+    expect(parseReceiptDiscount('')).toBeNull();
+  });
+
+  it('não confunde o desconto com os itens', () => {
+    const text = `
+      ARROZ KIKA PARBO PC 5kg (Código: 2635 )
+      Qtde.:1  UN: UN1  Vl. Unit.:   12,79   Vl. Total
+      12,79
+      Descontos R$:
+      14,30
+    `;
+
+    expect(parseReceiptText(text)).toHaveLength(1);
   });
 });

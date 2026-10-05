@@ -131,3 +131,37 @@ export function parseReceiptText(text: string): RawLine[] {
 
   return drafts.map(toRawLine).filter((line): line is RawLine => line !== null);
 }
+
+/** "Descontos R$: 14,30" — o número pode vir na mesma linha ou sozinho na seguinte. */
+const DISCOUNT_RE = /^descontos?\s*(?:r\$)?\s*:?\s*([\d.,]+)?\s*$/i;
+
+/**
+ * Desconto do cupom — o que a nota informa só no rodapé.
+ *
+ * O portal lista cada item pelo preço cheio e junta todos os descontos numa
+ * linha "Descontos R$" perto do total, sem dizer de qual produto saíram. O
+ * cupom de papel mostra o desconto embaixo do item, mas no texto colado essa
+ * ligação não existe, então só o total dá para aproveitar.
+ *
+ * `null` quando o texto não tem a linha — diferente de 0, que é a nota dizendo
+ * que não houve desconto.
+ */
+export function parseReceiptDiscount(text: string): number | null {
+  const lines = String(text ?? '')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  for (const [index, line] of lines.entries()) {
+    const match = line.match(DISCOUNT_RE);
+    if (!match) continue;
+
+    const raw = match[1] ?? lines[index + 1];
+    if (raw === undefined || !BARE_NUMBER_RE.test(raw)) continue;
+
+    const value = parseBRLNumber(raw);
+    if (Number.isFinite(value) && value >= 0) return value;
+  }
+
+  return null;
+}

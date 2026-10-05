@@ -48,6 +48,14 @@ ul.list li .rm:hover{ opacity:1; color: var(--bad); }
 }
 .total-row .amt{ font-weight:700; font-size:1rem; }
 
+/* desconto fica colado no total que ele abate, mais apagado que ele */
+.total-row.discount-row{
+  align-items:baseline;
+  padding-bottom: 6px;
+  color: var(--ink-soft);
+}
+.total-row.discount-row input{ width: 90px; }
+
 /* botao de editar, ao lado do de remover */
 ul.list li .edit{
   background:none;

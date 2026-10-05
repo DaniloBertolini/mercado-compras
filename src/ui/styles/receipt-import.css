@@ -76,6 +76,8 @@ ul.preview-list li label{
   gap:8px;
 }
 ul.preview-list li .price{ font-weight:700; }
+/* sem caixa de marcar: o desconto não é uma linha que se escolhe */
+ul.preview-list li.preview-discount .name{ flex:1; color: var(--ink-soft); }
 
 .btn-confirm-import{
   width:100%;

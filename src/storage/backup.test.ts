@@ -13,6 +13,8 @@ const compra: StoredState = {
     },
   ],
   adjustments: { b1: 'p1' },
+  discount: 1.3,
+  discountAllocations: { p1: 1.3 },
 };
 
 describe('ida e volta', () => {
@@ -43,7 +45,8 @@ describe('backups de versões anteriores', () => {
       },
     });
 
-    expect(parseBackup(antigo)).toEqual(compra);
+    // de antes do desconto existir: a compra chega inteira, sem desconto
+    expect(parseBackup(antigo)).toEqual({ ...compra, discount: 0, discountAllocations: {} });
   });
 
   it('aceita o estado cru, sem os metadados', () => {

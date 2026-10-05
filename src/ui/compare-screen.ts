@@ -35,10 +35,18 @@ export function mountCompareScreen(store: Store): Screen {
   const btnReset = byId<HTMLButtonElement>('btn-reset');
   const btnToggleAdjust = byId<HTMLButtonElement>('btn-toggle-adjust');
   const btnClearAdjust = byId<HTMLButtonElement>('btn-clear-adjust');
+  const discountBarEl = byId('discount-bar');
 
   // Estado só visual: cada visita à tela começa lendo, não editando. Por isso
   // não vai para o localStorage.
   let adjusting = false;
+
+  /**
+   * Saldo do Desconto do cupom no último desenho. O formulário de cada item
+   * precisa dele para não gravar mais do que sobrou — o núcleo já limita a
+   * conta, mas gravar o valor limitado faz a tela mostrar o que vale de fato.
+   */
+  let unallocated = 0;
 
   /**
    * Grupos que você recolheu. Vive só enquanto a tela está aberta, mas precisa
@@ -81,6 +89,33 @@ export function mountCompareScreen(store: Store): Screen {
 
     store.update((state) => {
       state.adjustments[lineId] = select.value === '' ? null : select.value;
+    });
+  });
+
+  listEl.addEventListener('submit', (event) => {
+    const form = (event.target as HTMLElement).closest<HTMLFormElement>('form.discount-form');
+    if (!form) return;
+    event.preventDefault();
+
+    const plannedId = form.dataset['plannedId'];
+    const amount = Number(form.querySelector<HTMLInputElement>('input')?.value);
+    if (!plannedId || !Number.isFinite(amount) || amount <= 0) return;
+
+    const capped = Math.round(Math.min(amount, unallocated) * 100) / 100;
+    if (capped <= 0) return;
+
+    store.update((state) => {
+      state.discountAllocations[plannedId] = capped;
+    });
+  });
+
+  listEl.addEventListener('click', (event) => {
+    const button = (event.target as HTMLElement).closest<HTMLElement>('.undo-discount');
+    const plannedId = button?.dataset['plannedId'];
+    if (!plannedId) return;
+
+    store.update((state) => {
+      delete state.discountAllocations[plannedId];
     });
   });
 
@@ -133,6 +168,27 @@ export function mountCompareScreen(store: Store): Screen {
       <span class="name">${escapeHtml(previsto.name)}</span>
       ${unitLine}
       <span class="meta"><span>total anunciado</span><span class="val">${money(row.announced)}</span></span>
+    `;
+  }
+
+  /**
+   * "Foi desconto do caixa" num item cobrado a mais. O valor já vem com a
+   * diferença inteira, que é o caso comum: um toque resolve. Quando o cupom de
+   * papel mostra um desconto menor, você troca o número e o item continua
+   * vermelho só com o que foi cobrado a mais de verdade.
+   */
+  function discountFormHtml(row: CheckRow): string {
+    if (row.diff === null || row.diff <= CENT_TOLERANCE) return '';
+    if (row.discounted > 0 || unallocated <= CENT_TOLERANCE) return '';
+
+    const suggested = Math.min(row.diff, unallocated);
+
+    return `
+      <form class="discount-form" data-planned-id="${row.check.planned.id}">
+        <input type="number" value="${suggested.toFixed(2)}" min="0.01" step="0.01" inputmode="decimal"
+               aria-label="valor do desconto no cupom de papel">
+        <button type="submit">foi desconto do caixa</button>
+      </form>
     `;
   }
 
@@ -197,15 +253,29 @@ export function mountCompareScreen(store: Store): Screen {
       )
       .join('');
 
+    // As linhas acima ficam com o preço cheio do portal; o desconto aparece
+    // entre elas e o total, como no cupom de papel.
+    const discountHtml =
+      row.discounted > 0
+        ? `<span class="meta discount-line">
+             <span>desconto no caixa
+               <button type="button" class="undo-discount" data-planned-id="${previsto.id}" aria-label="desfazer o desconto deste item">desfazer</button>
+             </span>
+             <span>−${money(row.discounted)}</span>
+           </span>`
+        : '';
+
     return `
       <div class="col-planned">
         ${plannedColHtml(row)}
       </div>
       <div class="col-bought ${colClass}">
         ${itemsHtml}
-        <span class="meta"><span>total pago</span><span class="val">${money(paid)}</span></span>
+        ${discountHtml}
+        <span class="meta"><span>total pago</span><span class="val">${money(paid - row.discounted)}</span></span>
         ${tagHtml}
         ${qtyNoteHtml}
+        ${discountFormHtml(row)}
       </div>
     `;
   }
@@ -280,8 +350,20 @@ export function mountCompareScreen(store: Store): Screen {
 
   function render(): void {
     const state = store.get();
-    const { groups, announced, paid, unpricedPaid, comparableDiff, divergingCount } =
-      reviewAssignment(assignReceipt(state.planned, state.lines, state.adjustments));
+    const review = reviewAssignment(assignReceipt(state.planned, state.lines, state.adjustments), {
+      total: state.discount,
+      allocations: state.discountAllocations,
+    });
+    const { groups, announced, paid, discount, unpricedPaid, comparableDiff, divergingCount } = review;
+
+    // antes de desenhar as linhas: é o saldo que decide quem ganha o formulário
+    unallocated = review.unallocatedDiscount;
+
+    discountBarEl.hidden = discount <= 0;
+    discountBarEl.innerHTML = `
+      desconto do cupom <strong>${money(discount)}</strong>
+      · ${unallocated > CENT_TOLERANCE ? `a distribuir <strong>${money(unallocated)}</strong>` : 'todo distribuído'}
+    `;
 
     listEl.innerHTML = '';
     listEl.classList.toggle('adjusting', adjusting);
@@ -301,9 +383,19 @@ export function mountCompareScreen(store: Store): Screen {
            </div>`
         : '';
 
+    // O total pago já vem com ele abatido; a linha diz de onde saiu a diferença
+    // para a soma dos itens acima, que continuam com o preço cheio.
+    const discountRow =
+      discount > 0
+        ? `<div class="summary-row faint">
+             <span>desconto do cupom · já abatido</span><span>−${money(discount)}</span>
+           </div>`
+        : '';
+
     summaryEl.innerHTML = `
       <div class="summary-row"><span>total anunciado</span><span>${money(announced)}</span></div>
       <div class="summary-row"><span>total pago</span><span>${money(paid)}</span></div>
+      ${discountRow}
       ${unpricedRow}
       <div class="summary-row"><span>itens com preço divergente</span><span>${divergingCount}</span></div>
       <div class="summary-row highlight">

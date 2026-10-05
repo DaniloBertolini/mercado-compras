@@ -61,8 +61,34 @@ describe('formato novo', () => {
         { id: 'b1', name: 'ARROZ TIO JOAO 5KG', measure: { kind: 'units', count: 1, unitPrice: 29.9 } },
       ],
       adjustments: { b1: 'p1' },
+      discount: 14.3,
+      discountAllocations: { p1: 1.3 },
     };
     expect(normalizeState(novo)).toEqual(novo);
+  });
+});
+
+describe('desconto do cupom', () => {
+  it('vale 0 em Backup de antes do desconto existir', () => {
+    expect(normalizeState(LEGADO).discount).toBe(0);
+  });
+
+  it('vira 0 quando é ilegível ou negativo', () => {
+    expect(normalizeState({ discount: 'abc' }).discount).toBe(0);
+    expect(normalizeState({ discount: -5 }).discount).toBe(0);
+  });
+
+  it('joga fora desconto atribuído a item apagado ou com valor ilegível', () => {
+    const state = normalizeState({
+      planned: [
+        { id: 'p1', name: 'Arroz', quantity: 1, unitPrice: 11.49 },
+        { id: 'p2', name: 'Feijão', quantity: 1, unitPrice: 8 },
+      ],
+      discount: 14.3,
+      discountAllocations: { p1: 1.3, p2: 'abc', 'p-apagado': 2 },
+    });
+
+    expect(state.discountAllocations).toEqual({ p1: 1.3 });
   });
 });
 

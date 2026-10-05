@@ -1,7 +1,7 @@
 import './styles/receipt-import.css';
 import { total as measureTotal } from '../core/measure.js';
 import { parseReceiptLink } from '../core/receipt-link.js';
-import { parseReceiptText, type RawLine } from '../core/receipt.js';
+import { parseReceiptDiscount, parseReceiptText, type RawLine } from '../core/receipt.js';
 import { uid } from '../id.js';
 import type { Store } from '../store.js';
 import { byId, type Screen } from './dom.js';
@@ -24,6 +24,7 @@ export function mountReceiptScreen(store: Store): Screen {
 
   const nameEl = byId<HTMLInputElement>('b-name');
   const priceEl = byId<HTMLInputElement>('b-price');
+  const discountEl = byId<HTMLInputElement>('b-discount');
 
   const linkEl = byId<HTMLInputElement>('import-link');
   const btnOpenLink = byId<HTMLButtonElement>('btn-open-link');
@@ -40,6 +41,8 @@ export function mountReceiptScreen(store: Store): Screen {
 
   // Só existe entre colar o texto e confirmar: não vale a pena guardar.
   let pending: PendingLine[] = [];
+  /** O "Descontos R$" do texto colado; `null` quando o trecho copiado não o tinha. */
+  let pendingDiscount: number | null = null;
 
   form.addEventListener('submit', (event) => {
     event.preventDefault();
@@ -64,6 +67,15 @@ export function mountReceiptScreen(store: Store): Screen {
     const index = Number(button.dataset['idx']);
     store.update((state) => {
       state.lines.splice(index, 1);
+    });
+  });
+
+  // `change` e não `input`: gravar a cada tecla redesenharia a tela no meio da
+  // digitação, e "14," viraria "14" antes de você chegar nos centavos.
+  discountEl.addEventListener('change', () => {
+    const value = Number(discountEl.value);
+    store.update((state) => {
+      state.discount = Number.isFinite(value) && value > 0 ? value : 0;
     });
   });
 
@@ -142,6 +154,7 @@ export function mountReceiptScreen(store: Store): Screen {
 
   btnParse.addEventListener('click', () => {
     pending = parseReceiptText(importTextEl.value).map((line) => ({ ...line, checked: true }));
+    pendingDiscount = parseReceiptDiscount(importTextEl.value);
     renderPreview();
   });
 
@@ -151,7 +164,7 @@ export function mountReceiptScreen(store: Store): Screen {
 
     const line = pending[Number(checkbox.dataset['idx'])];
     if (line) line.checked = checkbox.checked;
-    btnConfirm.disabled = !pending.some((item) => item.checked);
+    btnConfirm.disabled = !canConfirm();
   });
 
   btnConfirm.addEventListener('click', () => {
@@ -161,16 +174,25 @@ export function mountReceiptScreen(store: Store): Screen {
       for (const line of chosen) {
         state.lines.push({ id: uid(), name: line.name, measure: line.measure });
       }
+      // Substitui em vez de somar: colar a nota de novo não pode dobrar o
+      // desconto. Trecho sem a linha "Descontos" não mexe no que já estava.
+      if (pendingDiscount !== null) state.discount = pendingDiscount;
     });
 
     pending = [];
+    pendingDiscount = null;
     importTextEl.value = '';
     renderPreview();
   });
 
+  /** Dá para confirmar só o desconto — ele pode vir num trecho colado à parte. */
+  function canConfirm(): boolean {
+    return pending.some((line) => line.checked) || pendingDiscount !== null;
+  }
+
   function renderPreview(): void {
     previewListEl.innerHTML = '';
-    previewEmptyEl.style.display = pending.length ? 'none' : 'block';
+    previewEmptyEl.style.display = pending.length || pendingDiscount !== null ? 'none' : 'block';
 
     pending.forEach((line, index) => {
       const li = document.createElement('li');
@@ -184,7 +206,17 @@ export function mountReceiptScreen(store: Store): Screen {
       previewListEl.appendChild(li);
     });
 
-    btnConfirm.disabled = !pending.some((line) => line.checked);
+    if (pendingDiscount !== null) {
+      const li = document.createElement('li');
+      li.className = 'preview-discount';
+      li.innerHTML = `
+        <span class="name">desconto do cupom</span>
+        <span class="price">−${money(pendingDiscount)}</span>
+      `;
+      previewListEl.appendChild(li);
+    }
+
+    btnConfirm.disabled = !canConfirm();
   }
 
   return {
@@ -213,7 +245,12 @@ export function mountReceiptScreen(store: Store): Screen {
         listEl.appendChild(li);
       });
 
-      totalEl.textContent = money(total);
+      // Não reescreve enquanto você digita: o redesenho apagaria o cursor.
+      if (document.activeElement !== discountEl) {
+        discountEl.value = state.discount > 0 ? state.discount.toFixed(2) : '';
+      }
+
+      totalEl.textContent = money(total - state.discount);
       btnFinish.disabled = lines.length === 0;
     },
   };

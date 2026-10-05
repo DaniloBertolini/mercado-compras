@@ -64,6 +64,8 @@ describe('uso normal', () => {
       planned: [{ id: 'p9', name: 'Café', quantity: 1, unitPrice: 15 }],
       lines: [],
       adjustments: {},
+      discount: 0,
+      discountAllocations: {},
     };
     guardado.set('conferelista_v1', ANTIGO);
     guardado.set('conferelista_v2', JSON.stringify(atual));

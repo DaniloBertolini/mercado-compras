@@ -117,6 +117,18 @@ describe('totais', () => {
     expect(r.paid).toBeCloseTo(35, 2); // 25 + 10
   });
 
+  it('abatem o desconto do cupom, que a nota não liga a item nenhum', () => {
+    // caso real: arroz anunciado a 11,49, que passou a 12,79 com R$ 1,30 de desconto
+    const r = reviewAssignment(
+      assignReceipt([prev('Arroz Kika', 1, 11.49)], [line('ARROZ KIKA PARBO PC 5kg', 12.79)]),
+      { total: 1.3, allocations: {} },
+    );
+
+    expect(r.paid).toBeCloseTo(11.49, 2);
+    expect(r.discount).toBeCloseTo(1.3, 2);
+    expect(r.comparableDiff).toBeCloseTo(0, 2);
+  });
+
   it('multiplicam pela quantidade', () => {
     const r = review([prev('Chocolate', 8, 4.99)], [line('CHOC NEUGEBAUER', 4.99, 8)]);
 
@@ -225,5 +237,79 @@ describe('item sem preco anunciado', () => {
     // nao comprou a linguica: isso e falta, nao "sem preco"
     const r = review([semPreco('Linguica')], [line('ARROZ TIO JOAO 5KG', 20)]);
     expect(severities(r)).toEqual(['missing', 'extra']);
+  });
+});
+
+describe('desconto atribuído', () => {
+  // caso real: anunciado a 11,49, passou a 12,79, e o cupom de papel mostra
+  // R$ 1,30 de desconto embaixo do arroz; a nota inteira teve R$ 14,30
+  const arroz = () => prev('Arroz Kika', 1, 11.49);
+  const cupom = () => line('ARROZ KIKA PARBO PC 5kg', 12.79);
+
+  function withDiscount(planned: PlannedItem[], lines: ReceiptLine[], total: number, allocations: Record<string, number>) {
+    return reviewAssignment(assignReceipt(planned, lines), { total, allocations });
+  }
+
+  it('sem atribuir, o item continua cobrado a mais', () => {
+    const r = withDiscount([arroz()], [cupom()], 14.3, {});
+
+    expect(severities(r)).toEqual(['overpaid']);
+    expect(r.unallocatedDiscount).toBeCloseTo(14.3, 2);
+  });
+
+  it('o desconto que explica a diferença leva o item para conferido', () => {
+    const item = arroz();
+    const r = withDiscount([item], [cupom()], 14.3, { [item.id]: 1.3 });
+
+    const row = r.groups[0]?.rows[0] as CheckRow;
+    expect(severities(r)).toEqual(['settled']);
+    expect(row.discounted).toBeCloseTo(1.3, 2);
+    expect(row.diff).toBeCloseTo(0, 2);
+    expect(r.unallocatedDiscount).toBeCloseTo(13, 2);
+  });
+
+  it('desconto menor que a diferença deixa só o que foi cobrado a mais de verdade', () => {
+    const item = arroz();
+    const r = withDiscount([item], [cupom()], 14.3, { [item.id]: 1 });
+
+    const row = r.groups[0]?.rows[0] as CheckRow;
+    expect(severities(r)).toEqual(['overpaid']);
+    expect(row.diff).toBeCloseTo(0.3, 2);
+  });
+
+  it('nunca distribui mais do que a nota informou', () => {
+    const a = prev('Arroz', 1, 10);
+    const b = prev('Feijão', 1, 5);
+    const r = withDiscount(
+      [a, b],
+      [line('ARROZ TIO JOAO', 13), line('FEIJAO CARIOCA', 8)],
+      4,
+      { [a.id]: 3, [b.id]: 3 },
+    );
+
+    const rows = r.groups.flatMap((g) => g.rows) as CheckRow[];
+    const feijao = rows.find((row) => row.check.planned.id === b.id);
+
+    // o arroz, primeiro da lista, leva 3; o feijão fica com o 1 que sobrou
+    expect(feijao?.discounted).toBeCloseTo(1, 2);
+    expect(feijao?.diff).toBeCloseTo(2, 2);
+    expect(r.unallocatedDiscount).toBeCloseTo(0, 2);
+  });
+
+  it('não muda o total pago, que já tinha o desconto inteiro abatido', () => {
+    const item = arroz();
+    const sem = withDiscount([item], [cupom()], 14.3, {});
+    const com = withDiscount([item], [cupom()], 14.3, { [item.id]: 1.3 });
+
+    expect(com.paid).toBeCloseTo(sem.paid, 2);
+    expect(com.comparableDiff).toBeCloseTo(sem.comparableDiff, 2);
+  });
+
+  it('ignora atribuição a item que não apareceu no cupom', () => {
+    const item = arroz();
+    const r = withDiscount([item], [], 14.3, { [item.id]: 1.3 });
+
+    expect(severities(r)).toEqual(['missing']);
+    expect(r.unallocatedDiscount).toBeCloseTo(14.3, 2);
   });
 });

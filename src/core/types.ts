@@ -28,6 +28,23 @@ export interface ReceiptLine {
  */
 export type Adjustments = Readonly<Record<string, string | null>>;
 
+/**
+ * Descontos atribuídos — quanto do Desconto do cupom você ligou a cada
+ * Previsto, olhando o cupom de papel. Chave é o id do Previsto.
+ *
+ * É pelo Previsto, e não pela Linha do cupom, porque o veredito de "cobrado a
+ * mais" é dele: mudar qual linha caiu no item não muda o desconto que ele teve.
+ */
+export type DiscountAllocations = Readonly<Record<string, number>>;
+
+/** O Desconto do cupom e quanto dele já tem dono. */
+export interface CouponDiscount {
+  readonly total: number;
+  readonly allocations: DiscountAllocations;
+}
+
+export const NO_DISCOUNT: CouponDiscount = { total: 0, allocations: {} };
+
 /** Quanto custou o Previsto pelo preço anunciado, ou `null` se não havia preço. */
 export function plannedTotal(planned: PlannedItem): number | null {
   return planned.unitPrice === null ? null : planned.quantity * planned.unitPrice;

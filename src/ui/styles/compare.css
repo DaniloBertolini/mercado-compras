@@ -169,6 +169,46 @@ select.reassign:focus{ border-color: var(--accent); }
 /* a primeira linha de cada grupo nao repete a borda do cabecalho */
 .group-head + .compare-row{ padding-top: 10px; }
 
+/* saldo do desconto do cupom, logo acima dos itens que podem usa-lo */
+.discount-bar{
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  background: var(--paper-dark);
+  border-radius: 2px;
+  font-size: 0.76rem;
+  color: var(--ink-soft);
+}
+.discount-bar strong{ color: var(--ink); }
+
+/* desconto entre as linhas e o total, como no cupom de papel */
+.col-bought .meta.discount-line{ color: var(--ok); }
+.undo-discount{
+  background: none;
+  padding: 0 0 0 6px;
+  font-size: 0.68rem;
+  color: var(--ink-soft);
+  text-decoration: underline;
+}
+
+.discount-form{
+  display:flex;
+  gap:6px;
+  margin-top:8px;
+}
+.discount-form input{ width: 80px; flex: none; }
+.discount-form button{
+  flex:1;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font-size:0.66rem;
+  text-transform:uppercase;
+  letter-spacing:0.06em;
+  padding: 6px 8px;
+  border-radius:2px;
+}
+.discount-form button:hover{ border-color: var(--ink); }
+
 /* linha informativa do resumo: existe para explicar, nao para somar */
 .summary-row.faint{ color: var(--ink-soft); font-size:0.76rem; }
 
@@ -192,6 +232,8 @@ select.reassign:focus{ border-color: var(--accent); }
   .adjust-bar{ justify-content: stretch; }
   .btn-adjust{ flex:1; padding: 10px 6px; font-size: 0.64rem; }
   select.reassign{ font-size: 16px; padding: 10px 6px; }
+  .discount-form input{ font-size: 16px; }
+  .discount-form button{ padding: 10px 6px; }
 }
 
 @media (max-width: 600px){

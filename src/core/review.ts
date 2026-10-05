@@ -1,6 +1,6 @@
 import type { Assignment, Check, Unmatched } from './assign.js';
 import { total as measureTotal } from './measure.js';
-import { plannedTotal } from './types.js';
+import { NO_DISCOUNT, plannedTotal, type CouponDiscount } from './types.js';
 
 /**
  * Organiza a conferência na ordem em que ela é útil de ler.
@@ -40,8 +40,17 @@ export interface CheckRow {
   readonly check: Check;
   /** `null` para item cujo preço só se descobre no caixa */
   readonly announced: number | null;
+  /** a soma das Linhas do cupom, pelo preço cheio que o portal mostra */
   readonly paid: number;
-  /** positivo = pagou a mais; `null` quando não havia preço anunciado */
+  /**
+   * Quanto do Desconto do cupom ficou com este item. Pode ser menos do que
+   * você atribuiu, se o saldo do desconto não cobria tudo.
+   */
+  readonly discounted: number;
+  /**
+   * positivo = pagou a mais, já com o desconto atribuído; `null` quando não
+   * havia preço anunciado
+   */
   readonly diff: number | null;
   /**
    * Quanto cada unidade saiu mais cara que o anunciado.
@@ -71,8 +80,15 @@ export interface Review {
   readonly groups: readonly ReviewGroup[];
   /** só o que tinha preço anunciado — o resto não dá para somar */
   readonly announced: number;
-  /** tudo que saiu do seu bolso, inclusive o que não tinha preço previsto */
+  /**
+   * Tudo que saiu do seu bolso, inclusive o que não tinha preço previsto, já
+   * com o Desconto do cupom abatido — é o "Valor a pagar" da nota.
+   */
   readonly paid: number;
+  /** Desconto do cupom inteiro, já abatido de `paid` */
+  readonly discount: number;
+  /** a parte do desconto que ainda não foi ligada a nenhum item */
+  readonly unallocatedDiscount: number;
   /** quanto do pago veio de itens sem preço anunciado */
   readonly unpricedPaid: number;
   /**
@@ -128,13 +144,34 @@ function sortWithin(severity: Severity, rows: ReviewRow[]): ReviewRow[] {
   return rows;
 }
 
-export function reviewAssignment(assignment: Assignment): Review {
+/**
+ * O Desconto do cupom inteiro sai do total pago. Do veredito de cada item, só
+ * sai a parte que você atribuiu a ele: a nota não diz de qual item o desconto
+ * saiu, e escolher um sozinho seria inventar.
+ */
+export function reviewAssignment(
+  assignment: Assignment,
+  { total: discount, allocations }: CouponDiscount = NO_DISCOUNT,
+): Review {
   const rows: ReviewRow[] = [];
+
+  // Atribuir nunca passa do que a nota informou, nem se o desconto for
+  // diminuído depois: quem vem antes na lista fica com o saldo primeiro. Sem
+  // esse teto, o botão de desconto apagaria qualquer cobrança errada.
+  let remaining = discount;
 
   for (const check of assignment.checks) {
     const announced = plannedTotal(check.planned);
     const paid = paidFor(check);
-    const diff = announced === null ? null : paid - announced;
+
+    // Item sem preço anunciado ou que nem apareceu não tem diferença para o
+    // desconto explicar.
+    const wanted =
+      announced !== null && check.matches.length > 0 ? (allocations[check.planned.id] ?? 0) : 0;
+    const discounted = Math.max(0, Math.min(wanted, remaining));
+    remaining -= discounted;
+
+    const diff = announced === null ? null : paid - discounted - announced;
 
     const quantity = check.planned.quantity;
     const comparable =
@@ -145,6 +182,7 @@ export function reviewAssignment(assignment: Assignment): Review {
       check,
       announced,
       paid,
+      discounted,
       diff,
       unitDiff: comparable && diff !== null ? diff / quantity : null,
     });
@@ -161,7 +199,7 @@ export function reviewAssignment(assignment: Assignment): Review {
   }
 
   const announced = rows.reduce((sum, row) => sum + (row.kind === 'check' ? (row.announced ?? 0) : 0), 0);
-  const paid = rows.reduce((sum, row) => sum + row.paid, 0);
+  const paid = rows.reduce((sum, row) => sum + row.paid, 0) - discount;
 
   const unpricedPaid = rows.reduce(
     (sum, row) => sum + (severityOf(row) === 'unpriced' ? row.paid : 0),
@@ -177,6 +215,8 @@ export function reviewAssignment(assignment: Assignment): Review {
     groups,
     announced,
     paid,
+    discount,
+    unallocatedDiscount: remaining,
     unpricedPaid,
     comparableDiff: paid - unpricedPaid - announced,
     divergingCount,

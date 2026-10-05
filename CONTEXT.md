@@ -32,6 +32,20 @@ O que saiu do texto colado do portal da nota, antes de você confirmar quais
 linhas entram. Vira Linha do cupom ao ser confirmada.
 _Avoid_: item importado, bloco, preview
 
+**Desconto do cupom** (`discount`):
+O total de descontos que a nota informa só no rodapé ("Descontos R$"). O cupom
+de papel mostra cada desconto embaixo do seu item, mas o portal lista os itens
+pelo preço cheio e não diz de qual deles o desconto saiu. Abate do total pago,
+nunca do preço de uma Linha do cupom.
+_Avoid_: desconto do item, promoção
+
+**Desconto atribuído** (`discountAllocations`):
+A parte do Desconto do cupom que você ligou a um Previsto, olhando o cupom de
+papel. Sai da diferença daquele item, então um "cobrado a mais" que era só
+desconto vira conferido. A soma nunca passa do Desconto do cupom: sem esse teto,
+atribuir desconto apagaria qualquer cobrança errada.
+_Avoid_: abatimento, crédito
+
 ### A comparação
 
 **Conferência** (`Check`):

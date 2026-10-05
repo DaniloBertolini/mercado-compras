@@ -11,10 +11,14 @@ export interface StoredState {
   lines: ReceiptLine[];
   /** id da Linha do cupom -> id do Previsto, ou null para Fora da lista */
   adjustments: Record<string, string | null>;
+  /** Desconto do cupom: o total de descontos da nota, sem item a que pertença */
+  discount: number;
+  /** id do Previsto -> quanto do Desconto do cupom você ligou a ele */
+  discountAllocations: Record<string, number>;
 }
 
 export function emptyState(): StoredState {
-  return { step: 1, planned: [], lines: [], adjustments: {} };
+  return { step: 1, planned: [], lines: [], adjustments: {}, discount: 0, discountAllocations: {} };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -116,6 +120,15 @@ function readLine(raw: unknown): ReceiptLine | null {
   return { id: readId(raw['id']), name, measure };
 }
 
+/**
+ * Backup de antes do desconto não tem o campo, e ele vale 0: a compra continua
+ * inteira, só sem desconto registrado.
+ */
+function readDiscount(value: unknown): number {
+  const discount = toNumber(value);
+  return Number.isNaN(discount) || discount < 0 ? 0 : discount;
+}
+
 function readStep(value: unknown): Step {
   const step = Number(value);
   return step === 2 || step === 3 ? step : 1;
@@ -165,5 +178,21 @@ export function normalizeState(raw: unknown): StoredState {
     }
   }
 
-  return { step: readStep(raw['step']), planned, lines, adjustments };
+  // Mesma faxina dos Ajustes: desconto ligado a item apagado não serve a ninguém.
+  const rawAllocations = isRecord(raw['discountAllocations']) ? raw['discountAllocations'] : {};
+  const discountAllocations: Record<string, number> = {};
+
+  for (const [plannedId, value] of Object.entries(rawAllocations)) {
+    const amount = toNumber(value);
+    if (plannedIds.has(plannedId) && amount > 0) discountAllocations[plannedId] = amount;
+  }
+
+  return {
+    step: readStep(raw['step']),
+    planned,
+    lines,
+    adjustments,
+    discount: readDiscount(raw['discount']),
+    discountAllocations,
+  };
 }
