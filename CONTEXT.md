@@ -16,6 +16,12 @@ O que você viu anunciado na etiqueta ou promoção: produto, quantidade e preç
 Preço é sempre unitário.
 _Avoid_: planejado, item planejado, lista de compras
 
+**Preço só no caixa** (`unitPrice: null`):
+Previsto cujo valor não existe na gôndola porque sai da balança: linguiça,
+fruta, carne. Não é preço esquecido — é informação que ainda não existe, então
+o item fica fora de qualquer conta de divergência.
+_Avoid_: sem preço, preço zero, item a definir
+
 **Linha do cupom** (`ReceiptLine`):
 Uma linha do cupom fiscal. Não é um produto: uma única linha pode valer 12
 unidades ou 0,435 kg.

@@ -74,6 +74,25 @@ ul.list li.editing form.entry{ margin-bottom: 10px; }
 }
 .cancel-edit:hover{ border-color: var(--ink); color: var(--ink); }
 
+/* marcacao de item cujo preco so existe no caixa */
+.at-checkout{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin: -8px 0 18px;
+  font-size:0.72rem;
+  color: var(--ink-soft);
+  cursor:pointer;
+  user-select:none;
+}
+ul.list li.editing .at-checkout{ margin: 0 0 10px; }
+ul.list li .price.at-checkout-tag{
+  font-weight:400;
+  font-style:italic;
+  font-size:0.74rem;
+  color: var(--ink-soft);
+}
+
 @media (max-width: 600px){
   ul.list li{ gap: 8px; padding: 12px 0; }
   ul.list li .rm{ padding: 6px 4px; font-size: 1.15rem; opacity: 0.7; }

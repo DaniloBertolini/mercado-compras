@@ -23,6 +23,7 @@ const GROUP_TITLE: Record<Severity, string> = {
   overpaid: 'cobrado a mais',
   missing: 'faltando no cupom',
   extra: 'além da lista',
+  unpriced: 'preço só no caixa',
   settled: 'conferido, sem problema',
 };
 
@@ -94,7 +95,7 @@ export function mountCompareScreen(store: Store): Screen {
       .planned.map(
         (item) => `
           <option value="${item.id}"${item.id === currentPlannedId ? ' selected' : ''}>
-            ${escapeHtml(item.name)} · ${money(item.unitPrice)}
+            ${escapeHtml(item.name)} · ${item.unitPrice === null ? 'no caixa' : money(item.unitPrice)}
           </option>
         `,
       )
@@ -115,6 +116,13 @@ export function mountCompareScreen(store: Store): Screen {
    */
   function plannedColHtml(row: CheckRow): string {
     const previsto = row.check.planned;
+
+    if (previsto.unitPrice === null || row.announced === null) {
+      return `
+        <span class="name">${escapeHtml(previsto.name)}</span>
+        <span class="meta"><span>preço só no caixa</span></span>
+      `;
+    }
 
     const unitLine =
       previsto.quantity > 1
@@ -153,9 +161,14 @@ export function mountCompareScreen(store: Store): Screen {
     const unitNote =
       row.unitDiff === null ? '' : ` · ${money(Math.abs(row.unitDiff))} em cada`;
 
+    if (diff === null) {
+      // sem preço anunciado não há veredito possível: mostra o que foi pago
+      colClass = '';
+      tagHtml = '<span class="tag missing">sem preço para conferir</span>';
+    }
     // Mesma tolerância que o núcleo usa para agrupar, senão uma diferença de
     // meio centavo cairia em "conferido" exibindo "+R$ 0,00 a mais".
-    if (Math.abs(diff) < CENT_TOLERANCE) {
+    else if (Math.abs(diff) < CENT_TOLERANCE) {
       colClass = 'diff-ok';
       tagHtml = '<span class="tag ok">preço correto</span>';
     } else if (diff > 0) {
@@ -267,9 +280,8 @@ export function mountCompareScreen(store: Store): Screen {
 
   function render(): void {
     const state = store.get();
-    const { groups, announced, paid, divergingCount } = reviewAssignment(
-      assignReceipt(state.planned, state.lines, state.adjustments),
-    );
+    const { groups, announced, paid, unpricedPaid, comparableDiff, divergingCount } =
+      reviewAssignment(assignReceipt(state.planned, state.lines, state.adjustments));
 
     listEl.innerHTML = '';
     listEl.classList.toggle('adjusting', adjusting);
@@ -279,12 +291,21 @@ export function mountCompareScreen(store: Store): Screen {
       appendGroup(group.severity, group.rows.map(rowHtml));
     }
 
-    const diff = paid - announced;
-    const diverging = divergingCount;
+    const diff = comparableDiff;
+
+    // Só aparece quando existe: numa compra sem peso, a linha seria ruído.
+    const unpricedRow =
+      unpricedPaid > 0
+        ? `<div class="summary-row faint">
+             <span>sem preço anunciado · fora da conta</span><span>${money(unpricedPaid)}</span>
+           </div>`
+        : '';
+
     summaryEl.innerHTML = `
       <div class="summary-row"><span>total anunciado</span><span>${money(announced)}</span></div>
       <div class="summary-row"><span>total pago</span><span>${money(paid)}</span></div>
-      <div class="summary-row"><span>itens com preço divergente</span><span>${diverging}</span></div>
+      ${unpricedRow}
+      <div class="summary-row"><span>itens com preço divergente</span><span>${divergingCount}</span></div>
       <div class="summary-row highlight">
         <span>${diff > 0 ? 'você pagou a mais' : diff < 0 ? 'você pagou a menos' : 'tudo bateu certinho'}</span>
         <span class="amt ${diff > 0 ? 'bad' : 'ok'}">${money(Math.abs(diff))}</span>

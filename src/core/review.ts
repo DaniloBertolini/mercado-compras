@@ -21,19 +21,28 @@ export type Severity =
   | 'missing'
   /** veio no cupom além do que a lista previa */
   | 'extra'
+  /** o preço só existia no caixa, então não há o que conferir */
+  | 'unpriced'
   /** bateu, ou saiu mais barato */
   | 'settled';
 
 /** A ordem em que os grupos aparecem: primeiro o que dói, por último o que já está certo. */
-export const SEVERITY_ORDER: readonly Severity[] = ['overpaid', 'missing', 'extra', 'settled'];
+export const SEVERITY_ORDER: readonly Severity[] = [
+  'overpaid',
+  'missing',
+  'extra',
+  'unpriced',
+  'settled',
+];
 
 export interface CheckRow {
   readonly kind: 'check';
   readonly check: Check;
-  readonly announced: number;
+  /** `null` para item cujo preço só se descobre no caixa */
+  readonly announced: number | null;
   readonly paid: number;
-  /** positivo = pagou a mais */
-  readonly diff: number;
+  /** positivo = pagou a mais; `null` quando não havia preço anunciado */
+  readonly diff: number | null;
   /**
    * Quanto cada unidade saiu mais cara que o anunciado.
    *
@@ -60,8 +69,18 @@ export interface ReviewGroup {
 
 export interface Review {
   readonly groups: readonly ReviewGroup[];
+  /** só o que tinha preço anunciado — o resto não dá para somar */
   readonly announced: number;
+  /** tudo que saiu do seu bolso, inclusive o que não tinha preço previsto */
   readonly paid: number;
+  /** quanto do pago veio de itens sem preço anunciado */
+  readonly unpricedPaid: number;
+  /**
+   * A diferença que o app se propõe a responder, já sem os itens sem preço:
+   * cobrá-los de um total que nunca existiu faria o prejuízo parecer maior do
+   * que foi.
+   */
+  readonly comparableDiff: number;
   /** quantos itens previstos não fecharam: cobrados a mais ou nem encontrados */
   readonly divergingCount: number;
 }
@@ -72,13 +91,23 @@ function paidFor(check: Check): number {
 
 function severityOf(row: ReviewRow): Severity {
   if (row.kind === 'unmatched') return 'extra';
+
+  const { matches, matchedUnits, planned } = row.check;
+
+  // Estava na lista e não veio: vale tanto para quem tinha preço quanto para
+  // quem não tinha, porque em ambos os casos a compra não aconteceu.
+  if (matches.length === 0) return 'missing';
+
+  // Sem preço anunciado não há conferência possível: o item apareceu, custou o
+  // que custou, e dizer que está "certo" ou "errado" seria invenção.
+  if (row.diff === null) return 'unpriced';
+
   if (row.diff > CENT_TOLERANCE) return 'overpaid';
 
   // Faltar unidade não é economia. Prever 8 e achar 5 sai "R$ 14,97 a menos",
   // o que numa lista de "conferido, sem problema" leria como se estivesse tudo
   // certo — quando na verdade três itens não apareceram no cupom.
-  const { matches, matchedUnits, planned } = row.check;
-  if (matches.length === 0 || matchedUnits < planned.quantity) return 'missing';
+  if (matchedUnits < planned.quantity) return 'missing';
 
   return 'settled';
 }
@@ -90,7 +119,8 @@ function severityOf(row: ReviewRow): Severity {
  */
 function sortWithin(severity: Severity, rows: ReviewRow[]): ReviewRow[] {
   if (severity === 'overpaid') {
-    return [...rows].sort((a, b) => (b as CheckRow).diff - (a as CheckRow).diff);
+    // neste grupo diff nunca é null, mas o tipo não sabe disso
+    return [...rows].sort((a, b) => ((b as CheckRow).diff ?? 0) - ((a as CheckRow).diff ?? 0));
   }
   if (severity === 'extra') {
     return [...rows].sort((a, b) => b.paid - a.paid);
@@ -104,10 +134,11 @@ export function reviewAssignment(assignment: Assignment): Review {
   for (const check of assignment.checks) {
     const announced = plannedTotal(check.planned);
     const paid = paidFor(check);
-    const diff = paid - announced;
+    const diff = announced === null ? null : paid - announced;
 
     const quantity = check.planned.quantity;
-    const comparable = check.matches.length > 0 && check.matchedUnits === quantity && quantity > 1;
+    const comparable =
+      diff !== null && check.matches.length > 0 && check.matchedUnits === quantity && quantity > 1;
 
     rows.push({
       kind: 'check',
@@ -115,7 +146,7 @@ export function reviewAssignment(assignment: Assignment): Review {
       announced,
       paid,
       diff,
-      unitDiff: comparable ? diff / quantity : null,
+      unitDiff: comparable && diff !== null ? diff / quantity : null,
     });
   }
 
@@ -129,12 +160,25 @@ export function reviewAssignment(assignment: Assignment): Review {
     if (inGroup.length > 0) groups.push({ severity, rows: sortWithin(severity, inGroup) });
   }
 
-  const announced = rows.reduce((sum, row) => sum + (row.kind === 'check' ? row.announced : 0), 0);
+  const announced = rows.reduce((sum, row) => sum + (row.kind === 'check' ? (row.announced ?? 0) : 0), 0);
   const paid = rows.reduce((sum, row) => sum + row.paid, 0);
+
+  const unpricedPaid = rows.reduce(
+    (sum, row) => sum + (severityOf(row) === 'unpriced' ? row.paid : 0),
+    0,
+  );
+
   const divergingCount = rows.filter((row) => {
     const severity = severityOf(row);
     return severity === 'overpaid' || severity === 'missing';
   }).length;
 
-  return { groups, announced, paid, divergingCount };
+  return {
+    groups,
+    announced,
+    paid,
+    unpricedPaid,
+    comparableDiff: paid - unpricedPaid - announced,
+    divergingCount,
+  };
 }

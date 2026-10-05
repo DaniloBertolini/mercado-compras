@@ -78,8 +78,21 @@ function readPlanned(raw: unknown): PlannedItem | null {
   const name = readName(raw['name']);
   if (!name) return null;
 
-  const unitPrice = toNumber(raw['unitPrice'] ?? raw['price']);
-  if (Number.isNaN(unitPrice)) return null;
+  // `in` e não `??`: o operador trata null e undefined igual, e aqui null é um
+  // valor com significado — "preço só no caixa" — que cairia no campo antigo e
+  // levaria o item a ser descartado como ilegível.
+  const rawPrice = 'unitPrice' in raw ? raw['unitPrice'] : raw['price'];
+
+  // `null` explícito é um item cujo preço só se descobre no caixa, e precisa
+  // sobreviver à ida e volta. Já um preço ilegível é lixo, e o item é
+  // descartado como qualquer outro — não vira "preço no caixa" por acidente.
+  let unitPrice: number | null;
+  if (rawPrice === null) {
+    unitPrice = null;
+  } else {
+    unitPrice = toNumber(rawPrice);
+    if (Number.isNaN(unitPrice)) return null;
+  }
 
   const quantity = toNumber(raw['quantity'] ?? raw['qty']);
 

@@ -172,3 +172,58 @@ describe('quantidade incompleta', () => {
     expect(severities(r)).toEqual(['settled']);
   });
 });
+
+describe('item sem preco anunciado', () => {
+  // Linguica, fruta, carne: na gondola voce ve o produto, mas o valor sai da
+  // balanca. Nao e falta de atencao, e informacao que ainda nao existe.
+  const semPreco = (name: string): PlannedItem => ({
+    id: `p${++seq}`,
+    name,
+    quantity: 1,
+    unitPrice: null,
+  });
+
+  it('sai de "alem da lista" e ganha grupo proprio', () => {
+    const r = review(
+      [semPreco('Linguica')],
+      [{ id: 'l1', name: 'LING FRIWANDAL PURA kg', measure: { kind: 'weight', kilos: 0.62, pricePerKilo: 79.9 } }],
+    );
+
+    expect(severities(r)).toEqual(['unpriced']);
+  });
+
+  it('nao entra na conta da diferenca', () => {
+    const r = review(
+      [prev('Arroz', 1, 20), semPreco('Linguica')],
+      [
+        line('ARROZ TIO JOAO 5KG', 22),
+        { id: 'l2', name: 'LING FRIWANDAL PURA kg', measure: { kind: 'units', count: 1, unitPrice: 49.54 } },
+      ],
+    );
+
+    expect(r.unpricedPaid).toBeCloseTo(49.54, 2);
+    // so o arroz entra: 22 - 20, e nao 71,54 - 20
+    expect(r.comparableDiff).toBeCloseTo(2, 2);
+  });
+
+  it('continua somando no total pago, que e dinheiro de verdade', () => {
+    const r = review(
+      [prev('Arroz', 1, 20), semPreco('Linguica')],
+      [line('ARROZ TIO JOAO 5KG', 20), line('LING FRIWANDAL PURA kg', 49.54)],
+    );
+
+    expect(r.paid).toBeCloseTo(69.54, 2);
+    expect(r.announced).toBeCloseTo(20, 2); // so o que tinha preco
+  });
+
+  it('nao conta como divergencia', () => {
+    const r = review([semPreco('Linguica')], [line('LING FRIWANDAL PURA kg', 49.54)]);
+    expect(r.divergingCount).toBe(0);
+  });
+
+  it('continua sendo falta quando nao aparece no cupom', () => {
+    // nao comprou a linguica: isso e falta, nao "sem preco"
+    const r = review([semPreco('Linguica')], [line('ARROZ TIO JOAO 5KG', 20)]);
+    expect(severities(r)).toEqual(['missing', 'extra']);
+  });
+});

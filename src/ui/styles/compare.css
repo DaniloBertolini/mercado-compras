@@ -169,6 +169,12 @@ select.reassign:focus{ border-color: var(--accent); }
 /* a primeira linha de cada grupo nao repete a borda do cabecalho */
 .group-head + .compare-row{ padding-top: 10px; }
 
+/* linha informativa do resumo: existe para explicar, nao para somar */
+.summary-row.faint{ color: var(--ink-soft); font-size:0.76rem; }
+
+/* grupo sem preco: nem erro nem acerto, entao sem cor de veredito */
+.group-head.unpriced{ color: var(--ink-soft); }
+
 @media (max-width: 600px){
   /* comparativo empilhado: a barra colorida liga o pago ao anunciado */
   .compare-row{ grid-template-columns: 1fr; gap: 8px; }

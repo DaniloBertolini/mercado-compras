@@ -5,7 +5,14 @@ export interface PlannedItem {
   readonly id: string;
   readonly name: string;
   readonly quantity: number;
-  readonly unitPrice: number;
+  /**
+   * `null` quando o preço só existe no caixa.
+   *
+   * Linguiça, fruta, carne: na gôndola você vê o produto e o preço do quilo,
+   * mas o valor da sua compra sai da balança. Não é esquecimento nem erro —
+   * é informação que ainda não existe, e que não pode ser cobrada como falta.
+   */
+  readonly unitPrice: number | null;
 }
 
 /** Linha do cupom — uma linha do cupom fiscal, que pode valer várias unidades. */
@@ -21,7 +28,7 @@ export interface ReceiptLine {
  */
 export type Adjustments = Readonly<Record<string, string | null>>;
 
-/** Quanto custou o Previsto pelo preço anunciado. */
-export function plannedTotal(planned: PlannedItem): number {
-  return planned.quantity * planned.unitPrice;
+/** Quanto custou o Previsto pelo preço anunciado, ou `null` se não havia preço. */
+export function plannedTotal(planned: PlannedItem): number | null {
+  return planned.unitPrice === null ? null : planned.quantity * planned.unitPrice;
 }

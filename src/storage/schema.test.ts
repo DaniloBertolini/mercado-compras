@@ -121,3 +121,26 @@ describe('entrada estragada', () => {
     expect(normalizeState({ step: 'três' }).step).toBe(1);
   });
 });
+
+describe('item sem preco anunciado', () => {
+  it('sobrevive a ida e volta', () => {
+    const state = normalizeState({
+      planned: [{ id: 'p1', name: 'Linguica', quantity: 1, unitPrice: null }],
+    });
+
+    expect(state.planned[0]?.unitPrice).toBeNull();
+  });
+
+  it('nao confunde preco ilegivel com preco no caixa', () => {
+    // null e intencional; lixo continua sendo descartado
+    const state = normalizeState({
+      planned: [
+        { name: 'Linguica', unitPrice: null },
+        { name: 'Arroz', unitPrice: 'abc' },
+        { name: 'Feijao', unitPrice: 8.9 },
+      ],
+    });
+
+    expect(state.planned.map((item) => item.name)).toEqual(['Linguica', 'Feijao']);
+  });
+});

@@ -37,7 +37,8 @@ export interface Assignment {
 interface Bucket {
   readonly planned: PlannedItem;
   readonly tokens: readonly string[];
-  readonly plannedTotal: number;
+  /** `null` para item cujo preço só se descobre no caixa */
+  readonly plannedTotal: number | null;
   readonly matches: Match[];
   units: number;
 }
@@ -125,7 +126,13 @@ export function assignReceipt(
         bucket,
         line,
         evidence: matchEvidence(bucket.tokens, tokens),
-        priceGap: Math.abs(total(line.measure) - bucket.plannedTotal),
+        // Sem preço anunciado não há como medir proximidade: o par perde o
+        // desempate para quem tem um preço a comparar, em vez de ganhá-lo com
+        // uma distância zero que não significa nada.
+        priceGap:
+          bucket.plannedTotal === null
+            ? Number.POSITIVE_INFINITY
+            : Math.abs(total(line.measure) - bucket.plannedTotal),
       });
     }
   }

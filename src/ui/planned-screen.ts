@@ -15,6 +15,16 @@ export function mountPlannedScreen(store: Store): Screen {
   const nameEl = byId<HTMLInputElement>('p-name');
   const qtyEl = byId<HTMLInputElement>('p-qty');
   const priceEl = byId<HTMLInputElement>('p-price');
+  const atCheckoutEl = byId<HTMLInputElement>('p-at-checkout');
+
+  // Marcado, o campo de preço não tem o que receber: linguiça e fruta só ganham
+  // valor na balança. Desabilitar deixa isso explícito em vez de aceitar um
+  // número que seria inventado.
+  atCheckoutEl.addEventListener('change', () => {
+    priceEl.disabled = atCheckoutEl.checked;
+    priceEl.required = !atCheckoutEl.checked;
+    if (atCheckoutEl.checked) priceEl.value = '';
+  });
 
   /**
    * Qual item está aberto para edição. Só visual, e só um por vez: não vai para
@@ -26,8 +36,11 @@ export function mountPlannedScreen(store: Store): Screen {
     event.preventDefault();
 
     const name = nameEl.value.trim();
-    const unitPrice = Number(priceEl.value);
-    if (!name || Number.isNaN(unitPrice)) return;
+    if (!name) return;
+
+    const atCheckout = atCheckoutEl.checked;
+    const unitPrice = atCheckout ? null : Number(priceEl.value);
+    if (unitPrice !== null && Number.isNaN(unitPrice)) return;
 
     const quantity = Number(qtyEl.value) || 1;
     store.update((state) => {
@@ -37,6 +50,8 @@ export function mountPlannedScreen(store: Store): Screen {
     nameEl.value = '';
     qtyEl.value = '1';
     priceEl.value = '';
+    // a marcação continua ligada: na seção de hortifruti você adiciona vários
+    // seguidos, e desmarcar a cada item seria um toque a mais por produto
     nameEl.focus();
   });
 
@@ -68,18 +83,36 @@ export function mountPlannedScreen(store: Store): Screen {
     }
   });
 
+  // o checkbox vive fora do <form>, então a troca é tratada aqui
+  listEl.addEventListener('change', (event) => {
+    const checkbox = (event.target as HTMLElement).closest<HTMLInputElement>('.edit-at-checkout');
+    if (!checkbox) return;
+
+    const priceInput = checkbox.closest('li')?.querySelector<HTMLInputElement>('.edit-price');
+    if (!priceInput) return;
+
+    priceInput.disabled = checkbox.checked;
+    priceInput.required = !checkbox.checked;
+    if (checkbox.checked) priceInput.value = '';
+  });
+
   listEl.addEventListener('submit', (event) => {
     event.preventDefault();
 
     const editForm = (event.target as HTMLElement).closest<HTMLFormElement>('.edit-form');
     if (!editForm) return;
 
+    const item = editForm.closest('li');
     const id = editForm.dataset['id'];
     const name = editForm.querySelector<HTMLInputElement>('.edit-name')?.value.trim() ?? '';
-    const unitPrice = Number(editForm.querySelector<HTMLInputElement>('.edit-price')?.value);
     const quantity = Number(editForm.querySelector<HTMLInputElement>('.edit-qty')?.value) || 1;
 
-    if (!name || Number.isNaN(unitPrice)) return; // deixa aberto para corrigir
+    const atCheckout = item?.querySelector<HTMLInputElement>('.edit-at-checkout')?.checked ?? false;
+    const unitPrice = atCheckout
+      ? null
+      : Number(editForm.querySelector<HTMLInputElement>('.edit-price')?.value);
+
+    if (!name || (unitPrice !== null && Number.isNaN(unitPrice))) return; // deixa aberto para corrigir
 
     editingId = null;
     store.update((state) => {
@@ -98,10 +131,15 @@ export function mountPlannedScreen(store: Store): Screen {
   });
 
   function itemHtml(item: PlannedItem): string {
+    const priceHtml =
+      item.unitPrice === null
+        ? '<span class="price at-checkout-tag">no caixa</span>'
+        : `<span class="price">${money(item.unitPrice)}</span>`;
+
     return `
       <span class="name">${escapeHtml(item.name)}</span>
       <span class="qty">x${item.quantity}</span>
-      <span class="price">${money(item.unitPrice)}</span>
+      ${priceHtml}
       <button class="edit" data-id="${item.id}" title="editar">✎</button>
       <button class="rm" data-id="${item.id}" title="remover">×</button>
     `;
@@ -121,10 +159,15 @@ export function mountPlannedScreen(store: Store): Screen {
         </div>
         <div>
           <label class="field-label">Preço R$</label>
-          <input type="number" class="edit-price" min="0" step="0.01" value="${item.unitPrice}" required>
+          <input type="number" class="edit-price" min="0" step="0.01"
+                 value="${item.unitPrice ?? ''}" ${item.unitPrice === null ? 'disabled' : 'required'}>
         </div>
         <button type="submit" class="btn-add" title="salvar">✓</button>
       </form>
+      <label class="at-checkout">
+        <input type="checkbox" class="edit-at-checkout" ${item.unitPrice === null ? 'checked' : ''}>
+        só sei o preço no caixa
+      </label>
       <button type="button" class="cancel-edit">cancelar</button>
     `;
   }
@@ -136,8 +179,12 @@ export function mountPlannedScreen(store: Store): Screen {
     emptyEl.style.display = planned.length ? 'none' : 'block';
 
     let total = 0;
+    let atCheckout = 0;
+
     for (const item of planned) {
-      total += plannedTotal(item);
+      const itemTotal = plannedTotal(item);
+      if (itemTotal === null) atCheckout += 1;
+      else total += itemTotal;
 
       const li = document.createElement('li');
       const editing = item.id === editingId;
@@ -146,7 +193,11 @@ export function mountPlannedScreen(store: Store): Screen {
       listEl.appendChild(li);
     }
 
-    totalEl.textContent = money(total);
+    // Avisar que o total está incompleto é melhor que mostrar um número que
+    // parece fechado e não é: os itens de peso ainda vão somar no caixa.
+    totalEl.textContent =
+      atCheckout > 0 ? `${money(total)} + ${atCheckout} no caixa` : money(total);
+
     btnFinish.disabled = planned.length === 0;
   }
 
